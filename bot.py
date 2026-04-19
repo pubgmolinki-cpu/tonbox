@@ -12,6 +12,7 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 from aiohttp import web
 
 # --- НАСТРОЙКИ ---
+# ВАЖНО: Если ты менял токен в BotFather, вставь новый сюда!
 BOT_TOKEN = "8617831885:AAGTfZNkXdiLR9X69C0t7gpNwbeTkSwmkWc"
 ADMIN_ID = 1866813859 
 URL_SITE = "https://tonbox-news.onrender.com" 
@@ -109,14 +110,21 @@ async def delete_callback(callback: types.CallbackQuery):
     except:
         await callback.answer("Ошибка")
 
-# --- ЛОГИКА СЕРВЕРА ---
+# --- ОБНОВЛЕННАЯ ЛОГИКА СЕРВЕРА ---
 
 async def handle_api(request):
     return web.json_response(news_list)
 
 async def handle_site(request):
-    with open('index.html', 'r', encoding='utf-8') as f:
-        return web.Response(text=f.read(), content_type='text/html')
+    # Ищем файл index.html в той же папке, где лежит bot.py
+    file_path = os.path.join(os.path.dirname(__file__), 'index.html')
+    
+    if os.path.exists(file_path):
+        with open(file_path, 'r', encoding='utf-8') as f:
+            return web.Response(text=f.read(), content_type='text/html')
+    else:
+        # Если файла нет, бот честно об этом напишет в WebApp
+        return web.Response(text=f"Критическая ошибка: index.html не найден по пути {file_path}", status=404)
 
 app = web.Application()
 app.router.add_get('/', handle_site)
@@ -129,6 +137,7 @@ async def main():
     runner = web.AppRunner(app)
     await runner.setup()
     await web.TCPSite(runner, '0.0.0.0', port).start()
+    print(f"Сервер запущен на порту {port}")
     while True: await asyncio.sleep(3600)
 
 if __name__ == "__main__":
