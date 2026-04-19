@@ -12,7 +12,7 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 from aiohttp import web
 
 # --- НАСТРОЙКИ ---
-BOT_TOKEN = "8613728108:AAGR9Lmdx2YvG6wbg8qk31rcLxeKD4Vu6Po"
+BOT_TOKEN = "8617831885:AAE-S1lpACjfxTqrIiNXLH0r5jTaWilcV6s"
 ADMIN_ID = 1866813859 
 URL_SITE = "https://tonbox-news.onrender.com" 
 
