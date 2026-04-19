@@ -3,192 +3,60 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>TONBOX NEWS</title>
-    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700;900&display=swap" rel="stylesheet">
+    <title>TONSCORE</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
-        :root {
-            /* ОБНОВЛЕННЫЕ ЦВЕТА ФОНА (Глубокий темно-вишневый вместо черного) */
-            --bg-dark: #120108; 
-            --accent-red: #ff004c;
-            /* ОБНОВЛЕННЫЙ ЦВЕТ СВЕЧЕНИЯ (Красно-розовый в цвет кнопок) */
-            --glow-color: rgba(255, 0, 76, 0.2); 
-            
-            --grad: linear-gradient(135deg, #ff004c 0%, #8a2be2 100%);
-            --glass: rgba(255, 255, 255, 0.04);
-            --glass-border: rgba(255, 255, 255, 0.08);
-        }
-        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-        body, html {
-            margin: 0; padding: 0; background: var(--bg-dark); color: #fff;
-            font-family: 'Montserrat', sans-serif; overflow-x: hidden; height: 100%;
-        }
-
-        /* Обновленный фон со свечением */
-        .glow-bg {
-            position: fixed; top: 50%; left: 50%; width: 150vw; height: 150vh;
-            /* Радиальный градиент: от красно-розового в центре к темно-вишневому по краям */
-            background: radial-gradient(circle, var(--glow-color) 0%, rgba(18,1,8,0.2) 60%, transparent 100%);
-            transform: translate(-50%, -50%); z-index: -1; filter: blur(60px);
-        }
-
-        /* Экраны приветствия */
-        .welcome-screen {
-            position: fixed; inset: 0; background: var(--bg-dark);
-            display: flex; justify-content: center; align-items: center;
-            z-index: 1000; transition: 0.7s ease-in-out; padding: 20px;
-        }
-        .hidden-screen { transform: translateY(-100%); opacity: 0; pointer-events: none; }
-
-        .welcome-card {
-            background: var(--glass); backdrop-filter: blur(25px);
-            border: 1px solid var(--glass-border); padding: 40px 25px;
-            border-radius: 35px; width: 100%; max-width: 400px; text-align: center;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
-        }
-        h1 span { color: var(--accent-red); }
-        p { font-size: 14px; line-height: 1.6; opacity: 0.9; }
-
-        .btn {
-            display: flex; align-items: center; justify-content: center;
-            padding: 16px; border-radius: 18px; text-decoration: none;
-            font-weight: 700; font-size: 13px; transition: 0.3s; color: #fff; 
-            width: 100%; margin-top: 15px; border: none; cursor: pointer;
-            font-family: 'Montserrat', sans-serif;
-            box-shadow: 0 4px 15px rgba(255, 0, 76, 0.2);
-        }
-        .btn-red { background: var(--grad); }
-        .btn-blue { background: #24A1DE; }
-        
-        /* Шапка сайта */
-        header {
-            position: fixed; top: 0; width: 100%; padding: 15px 20px;
-            display: none; align-items: center; background: rgba(18, 1, 8, 0.85);
-            backdrop-filter: blur(15px); z-index: 900; border-bottom: 1px solid var(--glass-border);
-        }
-        .burger { font-size: 28px; cursor: pointer; }
-        .header-title { flex-grow: 1; text-align: center; font-weight: 900; }
-
-        /* Секция новостей */
-        .news-section { display: none; padding: 90px 15px 30px; max-width: 800px; margin: 0 auto; }
-        .news-card {
-            display: flex; background: var(--glass); border-radius: 25px;
-            margin-bottom: 20px; overflow: hidden; border: 1px solid var(--glass-border);
-        }
-        .news-img { width: 40%; object-fit: cover; cursor: zoom-in; min-height: 150px; }
-        .news-info { padding: 20px; flex: 1; }
-        .news-info h2 { margin: 0 0 10px; color: var(--accent-red); font-size: 18px; }
-
-        /* Боковое меню */
-        .sidebar {
-            position: fixed; left: -280px; top: 0; width: 260px; height: 100%;
-            background: rgba(18,1,8,0.98); backdrop-filter: blur(25px);
-            transition: 0.4s; z-index: 1100; padding: 50px 20px;
-            border-right: 1px solid var(--glass-border);
-        }
-        .sidebar.active { left: 0; }
-        .close-menu { position: absolute; right: 20px; top: 20px; font-size: 24px; }
-
-        /* Оверлей для просмотра фото */
-        #photo-overlay {
-            position: fixed; inset: 0; background: rgba(0,0,0,0.95);
-            display: none; align-items: center; justify-content: center;
-            z-index: 2000; padding: 10px;
-        }
-        #photo-overlay img { max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 10px; }
-
-        @media (max-width: 600px) {
-            .news-card { flex-direction: column; }
-            .news-img { width: 100%; height: 220px; }
-        }
+        :root { --red: #E30022; --bg: #0A0A0A; --card: #161616; }
+        body { background: var(--bg); color: white; font-family: sans-serif; margin: 0; }
+        .header { background: var(--red); padding: 15px; text-align: center; font-weight: 900; letter-spacing: 2px; }
+        .tabs { display: flex; background: var(--card); border-bottom: 1px solid #333; }
+        .tab { flex: 1; text-align: center; padding: 15px; font-size: 12px; color: #888; font-weight: bold; }
+        .tab.active { color: white; border-bottom: 3px solid var(--red); }
+        .content { padding: 15px; }
+        .match-card { background: var(--card); padding: 15px; border-radius: 10px; display: flex; justify-content: space-between; align-items: center; border-left: 4px solid var(--red); margin-bottom: 10px; }
+        .score { background: #000; padding: 5px 12px; border-radius: 5px; color: var(--red); font-weight: bold; }
+        .player-card { background: linear-gradient(145deg, #1a1a1a, #2a0005); padding: 20px; border-radius: 15px; text-align: center; border: 1px solid var(--red); }
+        .rating { background: var(--red); padding: 5px 10px; border-radius: 5px; font-size: 20px; font-weight: bold; }
     </style>
 </head>
 <body>
-    <div class="glow-bg"></div>
-
-    <div id="screen-welcome" class="welcome-screen">
-        <div class="glow-bg"></div> <div class="welcome-card">
-            <h1>TONBOX <span>NEWS</span></h1>
-            <p>Добро пожаловать на TONBOX NEWS! Самые свежие новости лиги здесь.</p>
-            <button onclick="nextScreen()" class="btn btn-red">Смотреть Новости!</button>
+    <div class="header">TONSCORE</div>
+    <div class="tabs">
+        <div class="tab active" onclick="switchTab('matches')">Матчи</div>
+        <div class="tab" onclick="switchTab('table')">Таблица</div>
+        <div class="tab" onclick="switchTab('totw')">ТОТW</div>
+    </div>
+    <div class="content" id="app">
+        <div class="match-card">
+            <span>Ренти Сити</span>
+            <div class="score">1 : 2</div>
+            <span>Зёльден</span>
         </div>
-    </div>
-
-    <div id="screen-about" class="welcome-screen hidden-screen">
-        <div class="glow-bg"></div> <div class="welcome-card">
-            <p>Всем привет. TONBOX – первый новостник, сделавший телеграм бота, где каждый может увидеть свежие новости нашей любимой лиги - <b>ФТКЛ</b>, а именно <b>ФТКЛ³</b>!</p>
-            <p style="font-size: 13px; opacity: 0.7;">Если у кого есть вопросы по боту или пожелания — жми на меню слева и выбирай "Создатель". Спасибо всем!</p>
-            <button onclick="enterSite()" class="btn btn-red">Свежие Новости!</button>
-        </div>
-    </div>
-
-    <header id="header">
-        <div class="burger" onclick="toggleMenu()">☰</div>
-        <div class="header-title">TONBOX NEWS</div>
-    </header>
-
-    <div class="sidebar" id="sidebar">
-        <div class="close-menu" onclick="toggleMenu()">✕</div>
-        <a href="https://t.me/TonBoxFTCL" class="btn btn-blue" target="_blank">
-            <img src="https://upload.wikimedia.org/wikipedia/commons/8/82/Telegram_logo.svg" width="16" style="margin-right: 8px;"> Наш Канал
-        </a>
-        <a href="https://t.me/fanziks" class="btn btn-red" target="_blank">Создатель</a>
-        <a href="https://t.me/tonyboxnews_bot" class="btn" style="background: #333; margin-top: 10px;">Поделиться Новостью</a>
-    </div>
-
-    <div class="news-section" id="news-section">
-        <div id="news-container"></div>
-    </div>
-
-    <div id="photo-overlay" onclick="this.style.display='none'">
-        <img id="full-photo" src="">
     </div>
 
     <script>
-        function nextScreen() {
-            document.getElementById('screen-welcome').classList.add('hidden-screen');
-            document.getElementById('screen-about').classList.remove('hidden-screen');
-        }
+        const tg = window.Telegram.WebApp;
+        tg.expand();
+        tg.setHeaderColor('#E30022');
 
-        function enterSite() {
-            document.getElementById('screen-about').classList.add('hidden-screen');
-            document.getElementById('header').style.display = 'flex';
-            document.getElementById('news-section').style.display = 'block';
-            loadNews();
-        }
-
-        function toggleMenu() { 
-            document.getElementById('sidebar').classList.toggle('active'); 
-        }
-
-        async function loadNews() {
-            try {
-                const res = await fetch('/api/news');
-                const news = await res.json();
-                const container = document.getElementById('news-container');
-                
-                if (news.length === 0) {
-                    container.innerHTML = '<p style="text-align:center; opacity:0.5; margin-top:50px;">Новостей пока нет... ⚽️</p>';
-                    return;
-                }
-
-                container.innerHTML = news.map(n => `
-                    <div class="news-card">
-                        <img src="${n.image_url}" class="news-img" onclick="openPhoto('${n.image_url}')">
-                        <div class="news-info">
-                            <h2>${n.title}</h2>
-                            <p>${n.content}</p>
-                        </div>
-                    </div>`).join('');
-            } catch (e) {
-                console.error("Ошибка загрузки новостей:", e);
+        function switchTab(type) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            event.target.classList.add('active');
+            const app = document.getElementById('app');
+            
+            if(type === 'totw') {
+                app.innerHTML = `
+                    <div class="player-card">
+                        <div style="color: gold; margin-bottom: 10px;">⭐ ИГРОК ТУРА</div>
+                        <h2>Nord</h2>
+                        <span class="rating">8.6</span>
+                        <p style="color: #888; margin-top: 15px;">Зёльден • ЦАП</p>
+                    </div>`;
+            } else if(type === 'table') {
+                app.innerHTML = '<div class="match-card"><span>1. Ренти Сити</span><b>15 очков</b></div>';
+            } else {
+                app.innerHTML = '<div class="match-card"><span>Ренти Сити</span><div class="score">1 : 2</div><span>Зёльден</span></div>';
             }
-        }
-
-        function openPhoto(url) {
-            const overlay = document.getElementById('photo-overlay');
-            const fullImg = document.getElementById('full-photo');
-            fullImg.src = url;
-            overlay.style.display = 'flex';
         }
     </script>
 </body>
