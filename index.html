@@ -18,47 +18,60 @@
             margin: 0; padding: 0; background: var(--bg-dark); color: #fff;
             font-family: 'Montserrat', sans-serif; overflow-x: hidden; height: 100%;
         }
+
+        /* Фон со свечением */
         .glow-bg {
             position: fixed; top: 50%; left: 50%; width: 150vw; height: 150vh;
             background: radial-gradient(circle, rgba(255,0,76,0.15) 0%, rgba(138,43,226,0.08) 50%, transparent 100%);
             transform: translate(-50%, -50%); z-index: -1; filter: blur(60px);
         }
-        #welcome {
+
+        /* Экраны приветствия */
+        .welcome-screen {
             position: fixed; inset: 0; background: var(--bg-dark);
             display: flex; justify-content: center; align-items: center;
-            z-index: 1000; transition: 0.7s;
+            z-index: 1000; transition: 0.7s ease-in-out; padding: 20px;
         }
+        .hidden-screen { transform: translateY(-100%); opacity: 0; pointer-events: none; }
+
         .welcome-card {
             background: var(--glass); backdrop-filter: blur(20px);
             border: 1px solid var(--glass-border); padding: 40px 25px;
-            border-radius: 35px; width: 90%; max-width: 400px; text-align: center;
+            border-radius: 35px; width: 100%; max-width: 400px; text-align: center;
         }
         h1 span { color: var(--accent-red); }
+        p { font-size: 14px; line-height: 1.6; opacity: 0.9; }
+
         .btn {
             display: flex; align-items: center; justify-content: center;
             padding: 16px; border-radius: 18px; text-decoration: none;
-            font-weight: 700; font-size: 13px; transition: 0.3s; color: #fff; width: 100%; margin-top: 15px;
+            font-weight: 700; font-size: 13px; transition: 0.3s; color: #fff; 
+            width: 100%; margin-top: 15px; border: none; cursor: pointer;
+            font-family: 'Montserrat', sans-serif;
         }
         .btn-red { background: var(--grad); }
         .btn-blue { background: #24A1DE; }
         
+        /* Шапка сайта */
         header {
             position: fixed; top: 0; width: 100%; padding: 15px 20px;
-            display: none; align-items: center; background: rgba(10, 12, 0, 0.8);
+            display: none; align-items: center; background: rgba(10, 10, 12, 0.8);
             backdrop-filter: blur(15px); z-index: 900; border-bottom: 1px solid var(--glass-border);
         }
         .burger { font-size: 28px; cursor: pointer; }
         .header-title { flex-grow: 1; text-align: center; font-weight: 900; }
 
+        /* Секция новостей */
         .news-section { display: none; padding: 90px 15px 30px; max-width: 800px; margin: 0 auto; }
         .news-card {
             display: flex; background: var(--glass); border-radius: 25px;
             margin-bottom: 20px; overflow: hidden; border: 1px solid var(--glass-border);
         }
-        .news-img { width: 40%; object-fit: cover; }
-        .news-info { padding: 20px; }
+        .news-img { width: 40%; object-fit: cover; cursor: zoom-in; min-height: 150px; }
+        .news-info { padding: 20px; flex: 1; }
         .news-info h2 { margin: 0 0 10px; color: var(--accent-red); font-size: 18px; }
 
+        /* Боковое меню */
         .sidebar {
             position: fixed; left: -280px; top: 0; width: 260px; height: 100%;
             background: rgba(10,10,12,0.98); backdrop-filter: blur(25px);
@@ -67,51 +80,107 @@
         .sidebar.active { left: 0; }
         .close-menu { position: absolute; right: 20px; top: 20px; font-size: 24px; }
 
+        /* Оверлей для просмотра фото */
+        #photo-overlay {
+            position: fixed; inset: 0; background: rgba(0,0,0,0.95);
+            display: none; align-items: center; justify-content: center;
+            z-index: 2000; padding: 10px;
+        }
+        #photo-overlay img { max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 10px; }
+
         @media (max-width: 600px) {
             .news-card { flex-direction: column; }
-            .news-img { width: 100%; height: 200px; }
+            .news-img { width: 100%; height: 220px; }
         }
     </style>
 </head>
 <body>
     <div class="glow-bg"></div>
-    <div id="welcome">
+
+    <div id="screen-welcome" class="welcome-screen">
         <div class="welcome-card">
             <h1>TONBOX <span>NEWS</span></h1>
             <p>Добро пожаловать на TONBOX NEWS! Самые свежие новости лиги здесь.</p>
-            <button onclick="enterSite()" class="btn btn-red">Смотреть Новости!</button>
+            <button onclick="nextScreen()" class="btn btn-red">Смотреть Новости!</button>
         </div>
     </div>
+
+    <div id="screen-about" class="welcome-screen hidden-screen">
+        <div class="welcome-card">
+            <p>Всем привет. TONBOX – первый наверное новостник который смог сделать телеграм бота, в котором каждый человек сможет посмотреть свежие новости нашей любимой лиги - <b>ФТКЛ</b>, а именно <b>ФТКЛ³</b>!</p>
+            <p style="font-size: 13px; opacity: 0.7;">Если у кого есть вопросы по боту или пожелания, то нажимайте на три полоски слева сверху и нажимайте на кнопку Создатель. Спасибо всем!</p>
+            <button onclick="enterSite()" class="btn btn-red">Свежие Новости!</button>
+        </div>
+    </div>
+
     <header id="header">
         <div class="burger" onclick="toggleMenu()">☰</div>
         <div class="header-title">TONBOX NEWS</div>
     </header>
+
     <div class="sidebar" id="sidebar">
         <div class="close-menu" onclick="toggleMenu()">✕</div>
-        <a href="https://t.me/TonBoxFTCL" class="btn btn-blue">
-            <img src="https://upload.wikimedia.org/wikipedia/commons/8/82/Telegram_logo.svg" width="16"> Наш Канал
+        <a href="https://t.me/TonBoxFTCL" class="btn btn-blue" target="_blank">
+            <img src="https://upload.wikimedia.org/wikipedia/commons/8/82/Telegram_logo.svg" width="16" style="margin-right: 8px;"> Наш Канал
         </a>
-        <a href="https://t.me/fanziks" class="btn btn-red">Создатель</a>
+        <a href="https://t.me/fanziks" class="btn btn-red" target="_blank">Создатель</a>
+        <a href="https://t.me/tonyboxnews_bot" class="btn" style="background: #333; margin-top: 10px;">Поделиться Ботом</a>
     </div>
+
     <div class="news-section" id="news-section">
         <div id="news-container"></div>
     </div>
+
+    <div id="photo-overlay" onclick="this.style.display='none'">
+        <img id="full-photo" src="">
+    </div>
+
     <script>
+        function nextScreen() {
+            document.getElementById('screen-welcome').classList.add('hidden-screen');
+            document.getElementById('screen-about').classList.remove('hidden-screen');
+        }
+
         function enterSite() {
-            document.getElementById('welcome').style.transform = 'translateY(-100%)';
+            document.getElementById('screen-about').classList.add('hidden-screen');
             document.getElementById('header').style.display = 'flex';
             document.getElementById('news-section').style.display = 'block';
             loadNews();
         }
-        function toggleMenu() { document.getElementById('sidebar').classList.toggle('active'); }
+
+        function toggleMenu() { 
+            document.getElementById('sidebar').classList.toggle('active'); 
+        }
+
         async function loadNews() {
-            const res = await fetch('/api/news');
-            const news = await res.json();
-            document.getElementById('news-container').innerHTML = news.map(n => `
-                <div class="news-card">
-                    <img src="${n.image_url}" class="news-img">
-                    <div class="news-info"><h2>${n.title}</h2><p>${n.content}</p></div>
-                </div>`).join('');
+            try {
+                const res = await fetch('/api/news');
+                const news = await res.json();
+                const container = document.getElementById('news-container');
+                
+                if (news.length === 0) {
+                    container.innerHTML = '<p style="text-align:center; opacity:0.5; margin-top:50px;">Новостей пока нет... ⚽️</p>';
+                    return;
+                }
+
+                container.innerHTML = news.map(n => `
+                    <div class="news-card">
+                        <img src="${n.image_url}" class="news-img" onclick="openPhoto('${n.image_url}')">
+                        <div class="news-info">
+                            <h2>${n.title}</h2>
+                            <p>${n.content}</p>
+                        </div>
+                    </div>`).join('');
+            } catch (e) {
+                console.error("Ошибка загрузки новостей:", e);
+            }
+        }
+
+        function openPhoto(url) {
+            const overlay = document.getElementById('photo-overlay');
+            const fullImg = document.getElementById('full-photo');
+            fullImg.src = url;
+            overlay.style.display = 'flex';
         }
     </script>
 </body>
