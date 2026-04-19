@@ -1,51 +1,27 @@
-import asyncio
 import os
 import logging
-import uuid
+import asyncio
 import psycopg2
-import aiohttp
-import base64
 from psycopg2.extras import RealDictCursor
+import google.generativeai as genai
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import Command
-from aiogram.fsm.context import FSMContext
-from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import Message, WebAppInfo, InlineKeyboardMarkup, InlineKeyboardButton
 from aiohttp import web
 
-# --- НАСТРОЙКИ ---
-BOT_TOKEN = "8617831885:AAGTfZNkXdiLR9X69C0t7gpNwbeTkSwmkWc"
-ADMIN_ID = 1866813859 
-URL_SITE = "https://web-production-b5bd3.up.railway.app"
+# --- НАСТРОЙКИ (Railway Variables) ---
+BOT_TOKEN = os.environ.get("BOT_TOKEN")
+ADMIN_ID = 1866813859
+URL_SITE = os.environ.get("URL_SITE") # Например: https://your-app.railway.app
 DATABASE_URL = os.environ.get("DATABASE_URL")
-IMGBB_API_KEY = os.environ.get("IMGBB_API_KEY")
+genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
 
 logging.basicConfig(level=logging.INFO)
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
+model = genai.GenerativeModel('gemini-1.5-flash')
 
-# --- ФУНКЦИЯ ЗАГРУЗКИ НА IMGBB ---
-async def upload_to_imgbb(image_bytes: bytes):
-    if not IMGBB_API_KEY:
-        logging.error("IMGBB_API_KEY не установлен!")
-        return None
-    
-    url = "https://api.imgbb.com/1/upload"
-    data = {
-        "key": IMGBB_API_KEY,
-        "image": base64.b64encode(image_bytes).decode("utf-8")
-    }
-    
-    async with aiohttp.ClientSession() as session:
-        async with session.post(url, data=data) as response:
-            if response.status == 200:
-                result = await response.json()
-                return result["data"]["url"] # Возвращает прямую ссылку на фото
-            else:
-                logging.error(f"Ошибка ImgBB: {await response.text()}")
-                return None
-
-# --- РАБОТА С БД ---
+# --- ИНИЦИАЛИЗАЦИЯ БАЗЫ ---
 def get_db_connection():
     return psycopg2.connect(DATABASE_URL)
 
@@ -54,120 +30,70 @@ def init_db():
         conn = get_db_connection()
         cur = conn.cursor()
         cur.execute("""
-            CREATE TABLE IF NOT EXISTS news (
-                id SERIAL PRIMARY KEY,
-                image_url TEXT,
-                title TEXT,
-                content TEXT,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
+            CREATE TABLE IF NOT EXISTS teams (id SERIAL PRIMARY KEY, name TEXT UNIQUE, logo_url TEXT, division TEXT DEFAULT 'FTCL 3');
+            CREATE TABLE IF NOT EXISTS players (id SERIAL PRIMARY KEY, team_id INTEGER REFERENCES teams(id) ON DELETE CASCADE, name TEXT, rating INTEGER, goals INTEGER DEFAULT 0, assists INTEGER DEFAULT 0, avg_rating REAL DEFAULT 0.0);
+            CREATE TABLE IF NOT EXISTS matches (id SERIAL PRIMARY KEY, tour INTEGER, home_id INTEGER REFERENCES teams(id), away_id INTEGER REFERENCES teams(id), score_home INTEGER, score_away INTEGER, stats JSONB);
+            CREATE TABLE IF NOT EXISTS match_stats (id SERIAL PRIMARY KEY, match_id INTEGER REFERENCES matches(id) ON DELETE CASCADE, player_id INTEGER REFERENCES players(id), rating REAL, goals INTEGER, assists INTEGER, is_totw BOOLEAN DEFAULT FALSE);
         """)
         conn.commit()
         cur.close()
         conn.close()
+        logging.info("✅ База TONSCORE готова.")
     except Exception as e:
         logging.error(f"Ошибка БД: {e}")
 
-def add_news(image_url, title, content):
-    conn = get_db_connection()
-    cur = conn.cursor()
-    cur.execute("INSERT INTO news (image_url, title, content) VALUES (%s, %s, %s)", 
-                (image_url, title, content))
-    conn.commit()
-    cur.close()
-    conn.close()
-
-def get_news():
-    try:
-        conn = get_db_connection()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-        cur.execute("SELECT image_url, title, content, id FROM news ORDER BY created_at DESC")
-        rows = cur.fetchall()
-        cur.close()
-        conn.close()
-        return rows
-    except: return []
-
 init_db()
 
-# --- СОСТОЯНИЯ ---
-class NewPost(StatesGroup):
-    photo = State()
-    title = State()
-    content = State()
+# --- ЛОГИКА GEMINI ---
+SYSTEM_PROMPT = """
+Ты — ассистент TONSCORE. Ты анализируешь футбольные матчи.
+1. Из 'Итогового протокола' вытаскивай статистику.
+2. Формат: (Голы | Пасы | Отборы | Сейвы) | % | Оценка.
+3. Оценку (напр. 82) всегда дели на 10 (8.2).
+4. Если пользователь просит добавить команды или лого — подтверждай действие.
+Будь кратким и профессиональным.
+"""
 
-# --- КОМАНДЫ ---
+# --- ХЕНДЛЕРЫ ---
 @dp.message(Command("start"))
 async def cmd_start(message: Message):
     kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="Смотреть Новости! ⚽️", web_app=WebAppInfo(url=URL_SITE))]
+        [InlineKeyboardButton(text="Продолжить", callback_data="menu")]
     ])
-    await message.answer("Добро пожаловать в TONBOX NEWS!", reply_markup=kb)
+    await message.answer("<b>TONSCORE</b>\n\nДобро пожаловать в систему статистики FTCL!", parse_mode="HTML", reply_markup=kb)
 
-@dp.message(Command("admin"), F.from_user.id == ADMIN_ID)
-async def admin_panel(message: Message, state: FSMContext):
-    await message.answer("🛠 Пришлите ФОТО для новости:")
-    await state.set_state(NewPost.photo)
+@dp.callback_query(F.data == "menu")
+async def show_menu(callback: types.CallbackQuery):
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="📊 Открыть TONSCORE (Web App)", web_app=WebAppInfo(url=URL_SITE))]
+    ])
+    await callback.message.edit_text("<b>FTCL 3</b>\nВыбери раздел в приложении:", parse_mode="HTML", reply_markup=kb)
 
-@dp.message(Command("del"), F.from_user.id == ADMIN_ID)
-async def clear_news(message: Message):
-    conn = get_db_connection()
-    cur = conn.cursor()
-    cur.execute("DELETE FROM news")
-    conn.commit()
-    cur.close()
-    conn.close()
-    await message.answer("✅ База очищена!")
+@dp.message(F.from_user.id == ADMIN_ID)
+async def admin_ai(message: Message):
+    # Прямое общение с Gemini
+    response = model.generate_content(f"{SYSTEM_PROMPT}\nЗапрос: {message.text}")
+    await message.answer(f"🤖 <b>Gemini:</b>\n\n{response.text}", parse_mode="HTML")
 
-@dp.message(NewPost.photo, F.photo)
-async def process_photo(message: Message, state: FSMContext):
-    msg = await message.answer("⏳ Загружаю фото в облако...")
-    
-    # Получаем байты фото из Телеграма
-    photo = message.photo[-1]
-    file_info = await bot.get_file(photo.file_id)
-    photo_bytes = await bot.download_file(file_info.file_path)
-    
-    # Грузим на ImgBB
-    img_url = await upload_to_imgbb(photo_bytes.read())
-    
-    if img_url:
-        await state.update_data(photo_url=img_url)
-        await msg.edit_text("✅ Фото сохранено в облаке! Введите ЗАГОЛОВОК:")
-        await state.set_state(NewPost.title)
-    else:
-        await msg.edit_text("❌ Ошибка загрузки фото. Попробуйте еще раз.")
-
-@dp.message(NewPost.title)
-async def set_title(message: Message, state: FSMContext):
-    await state.update_data(title=message.text)
-    await message.answer("Введите ТЕКСТ новости:")
-    await state.set_state(NewPost.content)
-
-@dp.message(NewPost.content)
-async def save_post(message: Message, state: FSMContext):
-    data = await state.get_data()
-    add_news(data['photo_url'], data['title'], message.text)
-    await message.answer("✅ Новость опубликована навсегда!")
-    await state.clear()
-
-# --- СЕРВЕР ---
-async def handle_api(request):
-    return web.json_response(get_news())
-
-async def handle_site(request):
+# --- СЕРВЕР ДЛЯ WEB APP ---
+async def handle_index(request):
     with open("index.html", "r", encoding="utf-8") as f:
         return web.Response(text=f.read(), content_type='text/html')
 
+async def get_table(request):
+    # Тестовые данные (позже заменим на SQL запрос)
+    data = [{"name": "Ренти Сити", "points": 3}, {"name": "Зёльден", "points": 0}]
+    return web.json_response(data)
+
 app = web.Application()
-app.router.add_get('/', handle_site)
-app.router.add_get('/api/news', handle_api)
+app.router.add_get('/', handle_index)
+app.router.add_get('/api/table', get_table)
 
 async def main():
     asyncio.create_task(dp.start_polling(bot))
-    port = int(os.environ.get("PORT", 8080))
     runner = web.AppRunner(app)
     await runner.setup()
+    port = int(os.environ.get("PORT", 8080))
     await web.TCPSite(runner, '0.0.0.0', port).start()
     await asyncio.Event().wait()
 
