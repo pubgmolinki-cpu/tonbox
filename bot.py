@@ -11,7 +11,7 @@ from aiogram.types import Message, WebAppInfo, InlineKeyboardMarkup, InlineKeybo
 from aiohttp import web
 
 # --- НАСТРОЙКИ (КЛЮЧ ВПИСАН НАПРЯМУЮ) ---
-GEMINI_KEY = "AIzaSyBTfuFyYRnZBjm9WLJUpQuqOZ7fbNk-70o"
+GEMINI_KEY = "AIzaSyBE_w-g738uMaSAVPs511m8RL4JrrQfx-8"
 BOT_TOKEN = os.environ.get("BOT_TOKEN")
 ADMIN_ID = 1866813859
 URL_SITE = os.environ.get("URL_SITE") 
