@@ -1,4 +1,4 @@
 aiogram
+openai
 psycopg2-binary
-google-generativeai
 aiohttp
