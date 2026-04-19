@@ -7,11 +7,15 @@
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700;900&display=swap" rel="stylesheet">
     <style>
         :root {
-            --bg-dark: #0a0a0c;
+            /* ОБНОВЛЕННЫЕ ЦВЕТА ФОНА (Глубокий темно-вишневый вместо черного) */
+            --bg-dark: #120108; 
             --accent-red: #ff004c;
+            /* ОБНОВЛЕННЫЙ ЦВЕТ СВЕЧЕНИЯ (Красно-розовый в цвет кнопок) */
+            --glow-color: rgba(255, 0, 76, 0.2); 
+            
             --grad: linear-gradient(135deg, #ff004c 0%, #8a2be2 100%);
-            --glass: rgba(255, 255, 255, 0.05);
-            --glass-border: rgba(255, 255, 255, 0.1);
+            --glass: rgba(255, 255, 255, 0.04);
+            --glass-border: rgba(255, 255, 255, 0.08);
         }
         * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
         body, html {
@@ -19,10 +23,11 @@
             font-family: 'Montserrat', sans-serif; overflow-x: hidden; height: 100%;
         }
 
-        /* Фон со свечением */
+        /* Обновленный фон со свечением */
         .glow-bg {
             position: fixed; top: 50%; left: 50%; width: 150vw; height: 150vh;
-            background: radial-gradient(circle, rgba(255,0,76,0.15) 0%, rgba(138,43,226,0.08) 50%, transparent 100%);
+            /* Радиальный градиент: от красно-розового в центре к темно-вишневому по краям */
+            background: radial-gradient(circle, var(--glow-color) 0%, rgba(18,1,8,0.2) 60%, transparent 100%);
             transform: translate(-50%, -50%); z-index: -1; filter: blur(60px);
         }
 
@@ -35,9 +40,10 @@
         .hidden-screen { transform: translateY(-100%); opacity: 0; pointer-events: none; }
 
         .welcome-card {
-            background: var(--glass); backdrop-filter: blur(20px);
+            background: var(--glass); backdrop-filter: blur(25px);
             border: 1px solid var(--glass-border); padding: 40px 25px;
             border-radius: 35px; width: 100%; max-width: 400px; text-align: center;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
         }
         h1 span { color: var(--accent-red); }
         p { font-size: 14px; line-height: 1.6; opacity: 0.9; }
@@ -48,6 +54,7 @@
             font-weight: 700; font-size: 13px; transition: 0.3s; color: #fff; 
             width: 100%; margin-top: 15px; border: none; cursor: pointer;
             font-family: 'Montserrat', sans-serif;
+            box-shadow: 0 4px 15px rgba(255, 0, 76, 0.2);
         }
         .btn-red { background: var(--grad); }
         .btn-blue { background: #24A1DE; }
@@ -55,7 +62,7 @@
         /* Шапка сайта */
         header {
             position: fixed; top: 0; width: 100%; padding: 15px 20px;
-            display: none; align-items: center; background: rgba(10, 10, 12, 0.8);
+            display: none; align-items: center; background: rgba(18, 1, 8, 0.85);
             backdrop-filter: blur(15px); z-index: 900; border-bottom: 1px solid var(--glass-border);
         }
         .burger { font-size: 28px; cursor: pointer; }
@@ -74,8 +81,9 @@
         /* Боковое меню */
         .sidebar {
             position: fixed; left: -280px; top: 0; width: 260px; height: 100%;
-            background: rgba(10,10,12,0.98); backdrop-filter: blur(25px);
+            background: rgba(18,1,8,0.98); backdrop-filter: blur(25px);
             transition: 0.4s; z-index: 1100; padding: 50px 20px;
+            border-right: 1px solid var(--glass-border);
         }
         .sidebar.active { left: 0; }
         .close-menu { position: absolute; right: 20px; top: 20px; font-size: 24px; }
@@ -98,7 +106,7 @@
     <div class="glow-bg"></div>
 
     <div id="screen-welcome" class="welcome-screen">
-        <div class="welcome-card">
+        <div class="glow-bg"></div> <div class="welcome-card">
             <h1>TONBOX <span>NEWS</span></h1>
             <p>Добро пожаловать на TONBOX NEWS! Самые свежие новости лиги здесь.</p>
             <button onclick="nextScreen()" class="btn btn-red">Смотреть Новости!</button>
@@ -106,9 +114,9 @@
     </div>
 
     <div id="screen-about" class="welcome-screen hidden-screen">
-        <div class="welcome-card">
-            <p>Всем привет. TONBOX – первый наверное новостник который смог сделать телеграм бота, в котором каждый человек сможет посмотреть свежие новости нашей любимой лиги - <b>ФТКЛ</b>, а именно <b>ФТКЛ³</b>!</p>
-            <p style="font-size: 13px; opacity: 0.7;">Если у кого есть вопросы по боту или пожелания, то нажимайте на три полоски слева сверху и нажимайте на кнопку Создатель. Спасибо всем!</p>
+        <div class="glow-bg"></div> <div class="welcome-card">
+            <p>Всем привет. TONBOX – первый новостник, сделавший телеграм бота, где каждый может увидеть свежие новости нашей любимой лиги - <b>ФТКЛ</b>, а именно <b>ФТКЛ³</b>!</p>
+            <p style="font-size: 13px; opacity: 0.7;">Если у кого есть вопросы по боту или пожелания — жми на меню слева и выбирай "Создатель". Спасибо всем!</p>
             <button onclick="enterSite()" class="btn btn-red">Свежие Новости!</button>
         </div>
     </div>
@@ -124,7 +132,7 @@
             <img src="https://upload.wikimedia.org/wikipedia/commons/8/82/Telegram_logo.svg" width="16" style="margin-right: 8px;"> Наш Канал
         </a>
         <a href="https://t.me/fanziks" class="btn btn-red" target="_blank">Создатель</a>
-        <a href="https://t.me/tonyboxnews_bot" class="btn" style="background: #333; margin-top: 10px;">Поделиться Ботом</a>
+        <a href="https://t.me/tonyboxnews_bot" class="btn" style="background: #333; margin-top: 10px;">Поделиться Новостью</a>
     </div>
 
     <div class="news-section" id="news-section">
