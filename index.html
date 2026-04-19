@@ -3,61 +3,96 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>TONSCORE</title>
+    <title>TonScore</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
-        :root { --red: #E30022; --bg: #0A0A0A; --card: #161616; }
-        body { background: var(--bg); color: white; font-family: sans-serif; margin: 0; }
-        .header { background: var(--red); padding: 15px; text-align: center; font-weight: 900; letter-spacing: 2px; }
-        .tabs { display: flex; background: var(--card); border-bottom: 1px solid #333; }
-        .tab { flex: 1; text-align: center; padding: 15px; font-size: 12px; color: #888; font-weight: bold; }
+        :root { --red: #E30022; --bg: #0A0A0A; --card: #161616; --text: #FFFFFF; }
+        body { background: var(--bg); color: var(--text); font-family: -apple-system, sans-serif; margin: 0; padding: 0; }
+        
+        .header { background: var(--red); padding: 20px; text-align: center; font-weight: 900; letter-spacing: 2px; font-size: 20px; }
+        
+        .tabs { display: flex; background: var(--card); border-bottom: 1px solid #333; position: sticky; top: 0; }
+        .tab { flex: 1; text-align: center; padding: 15px; font-size: 12px; color: #888; font-weight: bold; text-transform: uppercase; }
         .tab.active { color: white; border-bottom: 3px solid var(--red); }
+        
         .content { padding: 15px; }
-        .match-card { background: var(--card); padding: 15px; border-radius: 10px; display: flex; justify-content: space-between; align-items: center; border-left: 4px solid var(--red); margin-bottom: 10px; }
-        .score { background: #000; padding: 5px 12px; border-radius: 5px; color: var(--red); font-weight: bold; }
-        .player-card { background: linear-gradient(145deg, #1a1a1a, #2a0005); padding: 20px; border-radius: 15px; text-align: center; border: 1px solid var(--red); }
-        .rating { background: var(--red); padding: 5px 10px; border-radius: 5px; font-size: 20px; font-weight: bold; }
+        
+        /* Карточка матча */
+        .match-card {
+            background: var(--card);
+            border-radius: 12px;
+            padding: 15px;
+            margin-bottom: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-left: 4px solid var(--red);
+        }
+        .team-name { font-size: 14px; font-weight: 600; width: 40%; text-align: center; }
+        .score-box { background: #000; padding: 5px 15px; border-radius: 6px; color: var(--red); font-weight: 900; }
+
+        /* Карточка Игрока Тура */
+        .potw {
+            background: linear-gradient(145deg, #1a1a1a, #2a0005);
+            border: 1px solid var(--red);
+            border-radius: 15px;
+            padding: 25px;
+            text-align: center;
+        }
+        .rating-val { background: var(--red); padding: 5px 12px; border-radius: 6px; font-size: 22px; font-weight: bold; }
     </style>
 </head>
 <body>
     <div class="header">TONSCORE</div>
+    
     <div class="tabs">
-        <div class="tab active" onclick="switchTab('matches')">Матчи</div>
-        <div class="tab" onclick="switchTab('table')">Таблица</div>
-        <div class="tab" onclick="switchTab('totw')">ТОТW</div>
+        <div id="tab-matches" class="tab active" onclick="show('matches')">Матчи</div>
+        <div id="tab-table" class="tab" onclick="show('table')">Таблица</div>
+        <div id="tab-totw" class="tab" onclick="show('totw')">TOTW</div>
     </div>
-    <div class="content" id="app">
-        <div class="match-card">
-            <span>Ренти Сити</span>
-            <div class="score">1 : 2</div>
-            <span>Зёльден</span>
+
+    <div class="content" id="view">
         </div>
-    </div>
 
     <script>
         const tg = window.Telegram.WebApp;
         tg.expand();
         tg.setHeaderColor('#E30022');
 
-        function switchTab(type) {
+        function show(page) {
+            // Смена активной вкладки
             document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-            event.target.classList.add('active');
-            const app = document.getElementById('app');
+            document.getElementById('tab-' + page).classList.add('active');
             
-            if(type === 'totw') {
-                app.innerHTML = `
-                    <div class="player-card">
-                        <div style="color: gold; margin-bottom: 10px;">⭐ ИГРОК ТУРА</div>
-                        <h2>Nord</h2>
-                        <span class="rating">8.6</span>
-                        <p style="color: #888; margin-top: 15px;">Зёльден • ЦАП</p>
-                    </div>`;
-            } else if(type === 'table') {
-                app.innerHTML = '<div class="match-card"><span>1. Ренти Сити</span><b>15 очков</b></div>';
-            } else {
-                app.innerHTML = '<div class="match-card"><span>Ренти Сити</span><div class="score">1 : 2</div><span>Зёльден</span></div>';
+            const view = document.getElementById('view');
+            
+            if(page === 'matches') {
+                view.innerHTML = `
+                    <div class="match-card">
+                        <span class="team-name">Ренти Сити</span>
+                        <div class="score-box">1 : 2</div>
+                        <span class="team-name">Зёльден</span>
+                    </div>
+                `;
+            } else if(page === 'table') {
+                view.innerHTML = `
+                    <div class="match-card"><span>1. Ренти Сити</span><b>15 очков</b></div>
+                    <div class="match-card"><span>2. Зёльден</span><b>12 очков</b></div>
+                `;
+            } else if(page === 'totw') {
+                view.innerHTML = `
+                    <div class="potw">
+                        <div style="color: gold; margin-bottom: 10px;">⭐ ЛУЧШИЙ ИГРОК ТУРА</div>
+                        <h2 style="margin: 10px 0;">Nord</h2>
+                        <div style="margin: 15px 0;"><span class="rating-val">8.6</span></div>
+                        <p style="color: #888;">Зёльден • ЦАП</p>
+                    </div>
+                `;
             }
         }
+
+        // Запуск первой вкладки
+        show('matches');
     </script>
 </body>
 </html>
