@@ -9,10 +9,10 @@ from aiogram.filters import Command
 from aiogram.types import Message, WebAppInfo, InlineKeyboardMarkup, InlineKeyboardButton
 from aiohttp import web
 
-# --- НАСТРОЙКИ (Railway Variables) ---
+# --- НАСТРОЙКИ ---
 BOT_TOKEN = os.environ.get("BOT_TOKEN")
 ADMIN_ID = 1866813859
-URL_SITE = os.environ.get("URL_SITE") # Например: https://your-app.railway.app
+URL_SITE = os.environ.get("URL_SITE") 
 DATABASE_URL = os.environ.get("DATABASE_URL")
 genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
 
@@ -38,56 +38,39 @@ def init_db():
         conn.commit()
         cur.close()
         conn.close()
-        logging.info("✅ База TONSCORE готова.")
     except Exception as e:
         logging.error(f"Ошибка БД: {e}")
 
 init_db()
 
-# --- ЛОГИКА GEMINI ---
-SYSTEM_PROMPT = """
-Ты — ассистент TONSCORE. Ты анализируешь футбольные матчи.
-1. Из 'Итогового протокола' вытаскивай статистику.
-2. Формат: (Голы | Пасы | Отборы | Сейвы) | % | Оценка.
-3. Оценку (напр. 82) всегда дели на 10 (8.2).
-4. Если пользователь просит добавить команды или лого — подтверждай действие.
-Будь кратким и профессиональным.
-"""
-
 # --- ХЕНДЛЕРЫ ---
+
 @dp.message(Command("start"))
 async def cmd_start(message: Message):
+    # Прямая кнопка в Mini App
     kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="Продолжить", callback_data="menu")]
+        [InlineKeyboardButton(text="TonScore", web_app=WebAppInfo(url=URL_SITE))]
     ])
-    await message.answer("<b>TONSCORE</b>\n\nДобро пожаловать в систему статистики FTCL!", parse_mode="HTML", reply_markup=kb)
+    await message.answer(
+        "TonScore доступен уже в этом мини приложении",
+        reply_markup=kb
+    )
 
-@dp.callback_query(F.data == "menu")
-async def show_menu(callback: types.CallbackQuery):
-    kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="📊 Открыть TONSCORE (Web App)", web_app=WebAppInfo(url=URL_SITE))]
-    ])
-    await callback.message.edit_text("<b>FTCL 3</b>\nВыбери раздел в приложении:", parse_mode="HTML", reply_markup=kb)
-
+# ИИ-помощник для админа (обработка текстов матчей)
 @dp.message(F.from_user.id == ADMIN_ID)
 async def admin_ai(message: Message):
-    # Прямое общение с Gemini
-    response = model.generate_content(f"{SYSTEM_PROMPT}\nЗапрос: {message.text}")
-    await message.answer(f"🤖 <b>Gemini:</b>\n\n{response.text}", parse_mode="HTML")
+    # Gemini анализирует ввод и отвечает в чате
+    prompt = "Ты ассистент TonScore. Помоги админу управлять данными лиги FTCL 3."
+    response = model.generate_content(f"{prompt}\n\nЗапрос: {message.text}")
+    await message.answer(f"🤖 <b>Ассистент:</b>\n\n{response.text}", parse_mode="HTML")
 
 # --- СЕРВЕР ДЛЯ WEB APP ---
 async def handle_index(request):
     with open("index.html", "r", encoding="utf-8") as f:
         return web.Response(text=f.read(), content_type='text/html')
 
-async def get_table(request):
-    # Тестовые данные (позже заменим на SQL запрос)
-    data = [{"name": "Ренти Сити", "points": 3}, {"name": "Зёльден", "points": 0}]
-    return web.json_response(data)
-
 app = web.Application()
 app.router.add_get('/', handle_index)
-app.router.add_get('/api/table', get_table)
 
 async def main():
     asyncio.create_task(dp.start_polling(bot))
