@@ -1,106 +1,143 @@
 import asyncio
 import os
 import logging
+import json
+import uuid
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import Message, WebAppInfo, InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.utils.keyboard import InlineKeyboardBuilder
 from aiohttp import web
-import jinja2
-import aiohttp_jinja2
 
 # --- НАСТРОЙКИ ---
-BOT_TOKEN = "8617831885:AAGuiDHofe7tvx0QwS8xJfcNhO-TkfCduOA"
-ADMIN_ID = 1866813859  # Твой ID
-# Render сам подставит URL, но для кнопки в боте укажи свой адрес после деплоя
-URL_SITE = "https://tonbox-araq.onrender.com" 
+BOT_TOKEN = "8613728108:AAGR9Lmdx2YvG6wbg8qk31rcLxeKD4Vu6Po"
+ADMIN_ID = 1866813859 
+URL_SITE = "https://tonbox-news.onrender.com" 
 
 logging.basicConfig(level=logging.INFO)
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 
-# Список для хранения новостей (в идеале использовать БД, но для начала хватит списка)
-news_list = [
-    {
-        "image_url": "https://images.unsplash.com/photo-1574629810360-7efbbe195018?w=800",
-        "title": "Добро пожаловать в FTCL 3",
-        "content": "Это первая новость. Здесь будут публиковаться все важные события лиги!"
-    }
-]
+# Папки и файлы
+DB_FILE = "news.json"
+STATIC_DIR = "static"
 
-# --- СОСТОЯНИЯ АДМИНКИ ---
+if not os.path.exists(STATIC_DIR):
+    os.makedirs(STATIC_DIR)
+
+def load_news():
+    if os.path.exists(DB_FILE):
+        with open(DB_FILE, "r", encoding="utf-8") as f:
+            return json.load(f)
+    return []
+
+def save_news_to_file():
+    with open(DB_FILE, "w", encoding="utf-8") as f:
+        json.dump(news_list, f, ensure_ascii=False, indent=4)
+
+news_list = load_news()
+
 class NewPost(StatesGroup):
-    photo_url = State()
+    photo = State() # Теперь ждем само фото
     title = State()
     content = State()
 
 # --- ЛОГИКА БОТА ---
+
 @dp.message(Command("start"))
 async def cmd_start(message: Message):
     kb = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="Читать новости ⚽️", web_app=WebAppInfo(url=URL_SITE))]
     ])
-    await message.answer("Привет! Следи за новостями FTCL 3 прямо здесь.", reply_markup=kb)
+    await message.answer(f"Привет, {message.from_user.first_name}!\nДобро пожаловать в FTCL 3 News.", reply_markup=kb)
 
 @dp.message(Command("admin"), F.from_user.id == ADMIN_ID)
 async def admin_panel(message: Message, state: FSMContext):
-    await message.answer("🛠 Админка: Отправь ССЫЛКУ на фото:")
-    await state.set_state(NewPost.photo_url)
+    await message.answer("🛠 **Админка**\nПришли ФОТОГРАФИЮ для новости:")
+    await state.set_state(NewPost.photo)
 
-@dp.message(NewPost.photo_url)
-async def set_photo(message: Message, state: FSMContext):
-    await state.update_data(photo_url=message.text)
-    await message.answer("Введи ЗАГОЛОВОК:")
+# Обработка полученного ФОТО
+@dp.message(NewPost.photo, F.photo)
+async def process_photo(message: Message, state: FSMContext):
+    photo = message.photo[-1] # Берем самое лучшее качество
+    file_info = await bot.get_file(photo.file_id)
+    
+    # Генерируем уникальное имя файла
+    file_name = f"{uuid.uuid4()}.jpg"
+    file_path = os.path.join(STATIC_DIR, file_name)
+    
+    # Скачиваем файл
+    await bot.download_file(file_info.file_path, file_path)
+    
+    # Сохраняем ПУТЬ к фото (для сайта это будет /static/имя.jpg)
+    await state.update_data(photo_url=f"/static/{file_name}")
+    
+    await message.answer("Отлично! Теперь введи ЗАГОЛОВОК новости:")
     await state.set_state(NewPost.title)
 
 @dp.message(NewPost.title)
 async def set_title(message: Message, state: FSMContext):
     await state.update_data(title=message.text)
-    await message.answer("Введи ТЕКСТ новости:")
+    await message.answer("Введи основной ТЕКСТ новости:")
     await state.set_state(NewPost.content)
 
 @dp.message(NewPost.content)
-async def save_news(message: Message, state: FSMContext):
+async def save_new_post(message: Message, state: FSMContext):
     data = await state.get_data()
     news_list.insert(0, {
         "image_url": data['photo_url'],
         "title": data['title'],
         "content": message.text
     })
-    await message.answer("✅ Новость добавлена!")
+    save_news_to_file()
+    await message.answer("✅ Новость опубликована!")
     await state.clear()
 
-# --- ЛОГИКА ВЕБ-СЕРВЕРА (САЙТА) ---
-async def handle_index(request):
-    # Этот эндпоинт отдает JSON с новостями для нашего сайта
+@dp.message(Command("manage"), F.from_user.id == ADMIN_ID)
+async def manage_news(message: Message):
+    if not news_list:
+        await message.answer("Новостей пока нет.")
+        return
+    for index, news in enumerate(news_list):
+        builder = InlineKeyboardBuilder()
+        builder.row(InlineKeyboardButton(text="❌ Удалить", callback_data=f"del_{index}"))
+        await message.answer(f"🔹 **{news['title']}**", reply_markup=builder.as_markup(), parse_mode="Markdown")
+
+@dp.callback_query(F.data.startswith("del_"))
+async def delete_callback(callback: types.CallbackQuery):
+    idx = int(callback.data.split("_")[1])
+    try:
+        removed = news_list.pop(idx)
+        # (Опционально) Здесь можно добавить удаление самого файла из папки static
+        save_news_to_file()
+        await callback.message.edit_text(f"🗑 Удалено: {removed['title']}")
+    except:
+        await callback.answer("Ошибка")
+
+# --- ЛОГИКА ВЕБ-СЕРВЕРА ---
+
+async def handle_api(request):
     return web.json_response(news_list)
 
 async def handle_site(request):
-    # Читаем index.html и отдаем его пользователю
     with open('index.html', 'r', encoding='utf-8') as f:
-        html = f.read()
-    return web.Response(text=html, content_type='text/html')
+        return web.Response(text=f.read(), content_type='text/html')
 
 app = web.Application()
-app.router.add_get('/', handle_site)       # Отдает сам сайт
-app.router.add_get('/api/news', handle_index) # Отдает данные новостей
+app.router.add_get('/', handle_site)
+app.router.add_get('/api/news', handle_api)
+# ВАЖНО: эта строка разрешает сайту видеть файлы в папке static
+app.router.add_static('/static/', path=STATIC_DIR, name='static')
 
-# --- ЗАПУСК ---
 async def main():
-    # Запуск бота в фоне
     asyncio.create_task(dp.start_polling(bot))
-    
-    # Запуск веб-сервера
     port = int(os.environ.get("PORT", 10000))
     runner = web.AppRunner(app)
     await runner.setup()
-    site = web.TCPSite(runner, '0.0.0.0', port)
-    await site.start()
-    
-    logging.info(f"Сайт и Бот запущены на порту {port}")
-    while True:
-        await asyncio.sleep(3600)
+    await web.TCPSite(runner, '0.0.0.0', port).start()
+    while True: await asyncio.sleep(3600)
 
 if __name__ == "__main__":
     asyncio.run(main())
