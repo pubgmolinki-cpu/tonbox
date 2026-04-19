@@ -14,7 +14,7 @@ from aiogram.types import Message, WebAppInfo, InlineKeyboardMarkup, InlineKeybo
 from aiohttp import web
 
 # --- НАСТРОЙКИ ---
-BOT_TOKEN = "8613728108:AAGR9Lmdx2YvG6wbg8qk31rcLxeKD4Vu6Po"
+BOT_TOKEN = "8617831885:AAGTfZNkXdiLR9X69C0t7gpNwbeTkSwmkWc"
 ADMIN_ID = 1866813859 
 URL_SITE = "https://web-production-b5bd3.up.railway.app"
 DATABASE_URL = os.environ.get("DATABASE_URL")
