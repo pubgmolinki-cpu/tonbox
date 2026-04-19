@@ -3,29 +3,28 @@ import logging
 import asyncio
 import psycopg2
 import json
-from psycopg2.extras import RealDictCursor
-import google.generativeai as genai
+from openai import AsyncOpenAI  # Используем новую библиотеку OpenAI
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import Command
 from aiogram.types import Message, WebAppInfo, InlineKeyboardMarkup, InlineKeyboardButton
 from aiohttp import web
 
-# --- НАСТРОЙКИ (КЛЮЧ ВПИСАН НАПРЯМУЮ) ---
-GEMINI_KEY = "AIzaSyBE_w-g738uMaSAVPs511m8RL4JrrQfx-8"
+# --- НАСТРОЙКИ ---
+# Вставь свой ключ OpenAI здесь или в переменные Railway (OPENAI_API_KEY)
+OPENAI_KEY = os.environ.get("OPENAI_API_KEY", "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)
 BOT_TOKEN = os.environ.get("BOT_TOKEN")
 ADMIN_ID = 1866813859
 URL_SITE = os.environ.get("URL_SITE") 
 DATABASE_URL = os.environ.get("DATABASE_URL")
 
-# Настройка Gemini
-genai.configure(api_key=GEMINI_KEY)
-model = genai.GenerativeModel('gemini-1.5-flash')
+# Инициализация клиента OpenAI
+client = AsyncOpenAI(api_key=OPENAI_KEY)
 
 logging.basicConfig(level=logging.INFO)
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 
-# --- ИНИЦИАЛИЗАЦИЯ БАЗЫ ДАННЫХ ---
+# --- ИНИЦИАЛИЗАЦИЯ БАЗЫ ---
 def init_db():
     try:
         conn = psycopg2.connect(DATABASE_URL)
@@ -45,6 +44,7 @@ def init_db():
 # --- ХЕНДЛЕРЫ ---
 @dp.message(Command("start"))
 async def cmd_start(message: Message):
+    # Убедись, что URL_SITE начинается с https://
     kb = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="TonScore", web_app=WebAppInfo(url=URL_SITE))]
     ])
@@ -52,16 +52,25 @@ async def cmd_start(message: Message):
 
 @dp.message(F.from_user.id == ADMIN_ID)
 async def admin_ai(message: Message):
+    logging.info(f"Запрос к GPT: {message.text}")
     await bot.send_chat_action(message.chat.id, "typing")
+    
     try:
-        # Простой запрос к ИИ без лишних нагромождений
-        response = model.generate_content(f"Ты ассистент TonScore. Ответь кратко: {message.text}")
-        await message.answer(f"🤖 {response.text}")
+        # Запрос к OpenAI GPT
+        response = await client.chat.completions.create(
+            model="gpt-4o-mini", # или "gpt-3.5-turbo"
+            messages=[
+                {"role": "system", "content": "Ты ассистент футбольной лиги TONSCORE. Помогай админу управлять данными."},
+                {"role": "user", "content": message.text}
+            ]
+        )
+        answer = response.choices[0].message.content
+        await message.answer(f"🤖 {answer}")
     except Exception as e:
-        logging.error(f"Ошибка Gemini: {e}")
-        await message.answer("⚠️ ИИ пока не отвечает. Проверь логи в Railway.")
+        logging.error(f"Ошибка OpenAI: {e}")
+        await message.answer(f"⚠️ Ошибка GPT: {str(e)}")
 
-# --- СЕРВЕР ---
+# --- СЕРВЕР ДЛЯ WEB APP ---
 async def handle_index(request):
     with open("index.html", "r", encoding="utf-8") as f:
         return web.Response(text=f.read(), content_type='text/html')
