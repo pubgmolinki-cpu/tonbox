@@ -10,7 +10,7 @@ from aiogram.types import Message, WebAppInfo, InlineKeyboardMarkup, InlineKeybo
 # Вставь свои данные здесь, если не используешь переменные окружения Railway
 TOKEN = "8617831885:AAGuiDHofe7tvx0QwS8xJfcNhO-TkfCduOA"
 ADMIN_ID = 1866813859  # Твой цифровой ID (числом)
-URL_SITE = "https://o964180m.beget.tech/" # Адрес твоего сайта на Beget
+URL_SITE = "http://o964180m.beget.tech/" # Адрес твоего сайта на Beget
 SECRET_KEY = "МОЙ_СЕКРЕТНЫЙ_КЛЮЧ" # Должен совпадать с ключом в post_news.php
 
 bot = Bot(token=TOKEN)
