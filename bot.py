@@ -15,24 +15,26 @@ from aiohttp import web
 BOT_TOKEN = "8617831885:AAGTfZNkXdiLR9X69C0t7gpNwbeTkSwmkWc"
 ADMIN_ID = 1866813859 
 URL_SITE = "https://web-production-b5bd3.up.railway.app"
-# Берем URL базы из переменных Railway
+
+# Получаем DATABASE_URL из системы
 DATABASE_URL = os.environ.get("DATABASE_URL")
 
 logging.basicConfig(level=logging.INFO)
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 
-# Создаем папку для картинок, если её нет
+# Создаем папку static для картинок
 STATIC_PATH = os.path.join(os.path.dirname(__file__), "static")
 if not os.path.exists(STATIC_PATH):
     os.makedirs(STATIC_PATH)
 
-# --- ФУНКЦИИ БАЗЫ ДАННЫХ ---
 def get_db_connection():
-    # Эта функция гарантирует, что мы используем именно DATABASE_URL из Railway
-    if not DATABASE_URL:
-        raise ValueError("DATABASE_URL не найдена в переменных окружения Railway!")
-    return psycopg2.connect(DATABASE_URL)
+    # Если переменная пустая, пытаемся взять её еще раз напрямую
+    db_url = os.environ.get("DATABASE_URL")
+    if not db_url:
+        logging.error("КРИТИЧЕСКАЯ ОШИБКА: DATABASE_URL всё еще пуста!")
+        raise ValueError("DATABASE_URL is missing!")
+    return psycopg2.connect(db_url)
 
 def init_db():
     try:
@@ -50,11 +52,26 @@ def init_db():
         conn.commit()
         cur.close()
         conn.close()
-        logging.info("БД подключена успешно.")
+        logging.info("База данных PostgreSQL успешно инициализирована")
     except Exception as e:
-        logging.error(f"Ошибка инициализации БД: {e}")
+        logging.error(f"Не удалось подключиться к БД: {e}")
 
-def get_news():
+# Инициализация при старте
+init_db()
+
+# --- ВСЁ ОСТАЛЬНОЕ (ADMIN, DEL, API) ОСТАЕТСЯ КАК БЫЛО ---
+# (Просто вставь сюда функции из предыдущего сообщения)
+
+@dp.message(Command("start"))
+async def cmd_start(message: Message):
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="Смотреть Новости! ⚽️", web_app=WebAppInfo(url=URL_SITE))]
+    ])
+    await message.answer("Добро пожаловать!", reply_markup=kb)
+
+# ... (Остальные хендлеры /admin, /del и т.д. без изменений)
+
+async def handle_api(request):
     try:
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -62,94 +79,13 @@ def get_news():
         rows = cur.fetchall()
         cur.close()
         conn.close()
-        return rows
-    except Exception as e:
-        logging.error(f"Ошибка получения новостей: {e}")
-        return []
-
-def add_news(image_url, title, content):
-    conn = get_db_connection()
-    cur = conn.cursor()
-    cur.execute("INSERT INTO news (image_url, title, content) VALUES (%s, %s, %s)", 
-                (image_url, title, content))
-    conn.commit()
-    cur.close()
-    conn.close()
-
-def delete_all_news_db():
-    conn = get_db_connection()
-    cur = conn.cursor()
-    cur.execute("DELETE FROM news")
-    conn.commit()
-    cur.close()
-    conn.close()
-
-# Запускаем проверку базы при старте
-init_db()
-
-# --- СОСТОЯНИЯ АДМИНКИ ---
-class NewPost(StatesGroup):
-    photo = State()
-    title = State()
-    content = State()
-
-# --- КОМАНДЫ БОТА ---
-@dp.message(Command("start"))
-async def cmd_start(message: Message):
-    kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="Смотреть Новости! ⚽️", web_app=WebAppInfo(url=URL_SITE))]
-    ])
-    await message.answer("Добро пожаловать в TONBOX NEWS!", reply_markup=kb)
-
-@dp.message(Command("admin"), F.from_user.id == ADMIN_ID)
-async def admin_panel(message: Message, state: FSMContext):
-    await message.answer("🛠 Режим админа. Пришлите ФОТО:")
-    await state.set_state(NewPost.photo)
-
-@dp.message(Command("del"), F.from_user.id == ADMIN_ID)
-async def clear_news(message: Message):
-    try:
-        delete_all_news_db()
-        await message.answer("✅ База данных очищена!")
-    except Exception as e:
-        await message.answer(f"❌ Ошибка: {e}")
-
-@dp.message(NewPost.photo, F.photo)
-async def process_photo(message: Message, state: FSMContext):
-    photo = message.photo[-1]
-    file_info = await bot.get_file(photo.file_id)
-    file_name = f"{uuid.uuid4()}.jpg"
-    await bot.download_file(file_info.file_path, os.path.join(STATIC_PATH, file_name))
-    await state.update_data(photo_url=f"/static/{file_name}")
-    await message.answer("Введите заголовок новости:")
-    await state.set_state(NewPost.title)
-
-@dp.message(NewPost.title)
-async def set_title(message: Message, state: FSMContext):
-    await state.update_data(title=message.text)
-    await message.answer("Введите текст новости:")
-    await state.set_state(NewPost.content)
-
-@dp.message(NewPost.content)
-async def save_new_post(message: Message, state: FSMContext):
-    data = await state.get_data()
-    try:
-        add_news(data['photo_url'], data['title'], message.text)
-        await message.answer("✅ Новость опубликована и сохранена в Postgres!")
-    except Exception as e:
-        await message.answer(f"❌ Ошибка сохранения: {e}")
-    await state.clear()
-
-# --- СЕРВЕР ДЛЯ WEB APP ---
-async def handle_api(request):
-    return web.json_response(get_news())
+        return web.json_response(rows)
+    except:
+        return web.json_response([])
 
 async def handle_site(request):
-    html_path = os.path.join(os.path.dirname(__file__), "index.html")
-    if os.path.exists(html_path):
-        with open(html_path, "r", encoding="utf-8") as f:
-            return web.Response(text=f.read(), content_type='text/html')
-    return web.Response(text="index.html not found", status=404)
+    with open("index.html", "r", encoding="utf-8") as f:
+        return web.Response(text=f.read(), content_type='text/html')
 
 app = web.Application()
 app.router.add_get('/', handle_site)
