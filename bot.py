@@ -15,7 +15,7 @@ from aiohttp import web
 BOT_TOKEN = "8617831885:AAGTfZNkXdiLR9X69C0t7gpNwbeTkSwmkWc"
 ADMIN_ID = 1866813859 
 # На Railway ссылка будет другой, замени её здесь после деплоя
-URL_SITE = "web-production-b5bd3.up.railway.app" 
+URL_SITE = "https://web-production-b5bd3.up.railway.app" 
 
 logging.basicConfig(level=logging.INFO)
 bot = Bot(token=BOT_TOKEN)
