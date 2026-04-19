@@ -1,3 +1,4 @@
 aiogram
 aiohttp
 jinja2
+aiohttp_jinja2
