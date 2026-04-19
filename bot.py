@@ -1,214 +1,135 @@
-<!DOCTYPE html>
-<html lang="ru">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>TONBOX NEWS | Portal</title>
-    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700;900&display=swap" rel="stylesheet">
-    <style>
-        :root {
-            --bg-dark: #0a0a0c;
-            --accent-red: #ff004c;
-            --accent-purple: #8a2be2;
-            --grad: linear-gradient(135deg, #ff004c 0%, #8a2be2 100%);
-            --glass: rgba(255, 255, 255, 0.05);
-            --glass-border: rgba(255, 255, 255, 0.1);
-        }
+import asyncio
+import os
+import logging
+import json
+import uuid
+from aiogram import Bot, Dispatcher, types, F
+from aiogram.filters import Command
+from aiogram.fsm.context import FSMContext
+from aiogram.fsm.state import State, StatesGroup
+from aiogram.types import Message, WebAppInfo, InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.utils.keyboard import InlineKeyboardBuilder
+from aiohttp import web
 
-        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+# --- НАСТРОЙКИ ---
+BOT_TOKEN = "8613728108:AAGR9Lmdx2YvG6wbg8qk31rcLxeKD4Vu6Po"
+ADMIN_ID = 1866813859 
+URL_SITE = "https://tonbox-news.onrender.com" 
 
-        body, html {
-            margin: 0; padding: 0;
-            background-color: var(--bg-dark);
-            color: #fff;
-            font-family: 'Montserrat', sans-serif;
-            overflow-x: hidden;
-            height: 100%;
-        }
+logging.basicConfig(level=logging.INFO)
+bot = Bot(token=BOT_TOKEN)
+dp = Dispatcher()
 
-        .glow-bg {
-            position: fixed; top: 50%; left: 50%;
-            width: 150vw; height: 150vh;
-            background: radial-gradient(circle, rgba(255,0,76,0.15) 0%, rgba(138,43,226,0.08) 50%, transparent 100%);
-            transform: translate(-50%, -50%);
-            z-index: -1; filter: blur(60px);
-            animation: pulse 10s infinite alternate;
-        }
+# Папки и файлы
+DB_FILE = "news.json"
+STATIC_DIR = "static"
 
-        @keyframes pulse {
-            from { transform: translate(-50%, -50%) scale(1); opacity: 0.6; }
-            to { transform: translate(-50%, -50%) scale(1.2); opacity: 1; }
-        }
+if not os.path.exists(STATIC_DIR):
+    os.makedirs(STATIC_DIR)
 
-        #welcome {
-            position: fixed; inset: 0;
-            background: var(--bg-dark);
-            display: flex; justify-content: center; align-items: center;
-            z-index: 1000; text-align: center;
-            transition: transform 0.7s cubic-bezier(0.86, 0, 0.07, 1);
-        }
+def load_news():
+    if os.path.exists(DB_FILE):
+        try:
+            with open(DB_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except: return []
+    return []
 
-        .welcome-card {
-            background: var(--glass);
-            backdrop-filter: blur(20px);
-            border: 1px solid var(--glass-border);
-            padding: 40px 25px;
-            border-radius: 35px;
-            width: 90%; max-width: 400px;
-            box-shadow: 0 20px 40px rgba(0,0,0,0.6);
-        }
+def save_news_to_file():
+    with open(DB_FILE, "w", encoding="utf-8") as f:
+        json.dump(news_list, f, ensure_ascii=False, indent=4)
 
-        h1 { font-weight: 900; font-size: 28px; margin-bottom: 15px; letter-spacing: -1px; }
-        h1 span { color: var(--accent-red); }
+news_list = load_news()
 
-        .welcome-card p { font-size: 14px; line-height: 1.5; opacity: 0.8; margin-bottom: 30px; }
+class NewPost(StatesGroup):
+    photo = State()
+    title = State()
+    content = State()
 
-        .btn {
-            display: flex; align-items: center; justify-content: center;
-            padding: 16px; border-radius: 18px;
-            text-decoration: none; font-weight: 700;
-            text-transform: uppercase; font-size: 13px;
-            transition: 0.3s; border: none; cursor: pointer;
-            margin-bottom: 12px; color: #fff; width: 100%;
-            gap: 10px;
-        }
+# --- ЛОГИКА БОТА ---
 
-        .btn-red { background: var(--grad); box-shadow: 0 8px 15px rgba(255,0,76,0.2); }
-        .btn-blue { background: #24A1DE; }
-        .btn:active { transform: scale(0.96); }
+@dp.message(Command("start"))
+async def cmd_start(message: Message):
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="Читать TONBOX NEWS ⚽️", web_app=WebAppInfo(url=URL_SITE))]
+    ])
+    await message.answer(f"Привет, {message.from_user.first_name}!\nДобро пожаловать в TONBOX NEWS.", reply_markup=kb)
 
-        header {
-            position: fixed; top: 0; width: 100%;
-            padding: 15px 20px; display: none; align-items: center;
-            background: rgba(10, 10, 12, 0.8);
-            backdrop-filter: blur(15px); z-index: 900;
-            border-bottom: 1px solid var(--glass-border);
-        }
+@dp.message(Command("admin"), F.from_user.id == ADMIN_ID)
+async def admin_panel(message: Message, state: FSMContext):
+    await message.answer("🛠 **Админка**\nПришли ФОТОГРАФИЮ для новости:")
+    await state.set_state(NewPost.photo)
 
-        .burger { font-size: 28px; cursor: pointer; }
-        .header-title { flex-grow: 1; text-align: center; font-weight: 900; letter-spacing: 2px; font-size: 18px; }
+@dp.message(NewPost.photo, F.photo)
+async def process_photo(message: Message, state: FSMContext):
+    photo = message.photo[-1]
+    file_info = await bot.get_file(photo.file_id)
+    file_name = f"{uuid.uuid4()}.jpg"
+    file_path = os.path.join(STATIC_DIR, file_name)
+    await bot.download_file(file_info.file_path, file_path)
+    await state.update_data(photo_url=f"/static/{file_name}")
+    await message.answer("Введите ЗАГОЛОВОК новости:")
+    await state.set_state(NewPost.title)
 
-        .news-section {
-            display: none; padding: 90px 15px 30px;
-            max-width: 800px; margin: 0 auto;
-        }
+@dp.message(NewPost.title)
+async def set_title(message: Message, state: FSMContext):
+    await state.update_data(title=message.text)
+    await message.answer("Введите ТЕКСТ новости:")
+    await state.set_state(NewPost.content)
 
-        .news-card {
-            display: flex; flex-direction: row;
-            background: var(--glass); border-radius: 25px;
-            margin-bottom: 20px; overflow: hidden;
-            border: 1px solid var(--glass-border);
-            animation: fadeIn 0.5s ease;
-        }
+@dp.message(NewPost.content)
+async def save_new_post(message: Message, state: FSMContext):
+    data = await state.get_data()
+    news_list.insert(0, {
+        "image_url": data['photo_url'],
+        "title": data['title'],
+        "content": message.text
+    })
+    save_news_to_file()
+    await message.answer("✅ Новость опубликована!")
+    await state.clear()
 
-        .news-img { width: 40%; min-width: 140px; height: auto; object-fit: cover; }
-        .news-info { padding: 20px; flex-grow: 1; }
-        .news-info h2 { margin: 0 0 10px 0; font-size: 18px; color: var(--accent-red); line-height: 1.3; }
-        .news-info p { margin: 0; font-size: 14px; opacity: 0.8; line-height: 1.6; }
+@dp.message(Command("manage"), F.from_user.id == ADMIN_ID)
+async def manage_news(message: Message):
+    if not news_list:
+        await message.answer("Новостей нет.")
+        return
+    for index, news in enumerate(news_list):
+        builder = InlineKeyboardBuilder()
+        builder.row(InlineKeyboardButton(text="❌ Удалить", callback_data=f"del_{index}"))
+        await message.answer(f"🔹 {news['title']}", reply_markup=builder.as_markup())
 
-        .sidebar {
-            position: fixed; left: -280px; top: 0;
-            width: 260px; height: 100%;
-            background: rgba(10,10,12,0.98);
-            backdrop-filter: blur(25px); transition: 0.4s;
-            z-index: 1100; padding: 50px 20px;
-            border-right: 1px solid var(--accent-red);
-        }
-        .sidebar.active { left: 0; }
-        .close-menu { position: absolute; right: 20px; top: 20px; font-size: 24px; }
+@dp.callback_query(F.data.startswith("del_"))
+async def delete_callback(callback: types.CallbackQuery):
+    idx = int(callback.data.split("_")[1])
+    try:
+        removed = news_list.pop(idx)
+        save_news_to_file()
+        await callback.message.edit_text(f"🗑 Удалено: {removed['title']}")
+    except:
+        await callback.answer("Ошибка")
 
-        @media (max-width: 600px) {
-            .news-card { flex-direction: column; }
-            .news-img { width: 100%; height: 200px; }
-            .news-info { padding: 15px; }
-            .news-info h2 { font-size: 17px; }
-        }
+# --- ЛОГИКА СЕРВЕРА ---
 
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(10px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-    </style>
-</head>
-<body>
+async def handle_api(request):
+    return web.json_response(news_list)
 
-<div class="glow-bg"></div>
+async def handle_site(request):
+    with open('index.html', 'r', encoding='utf-8') as f:
+        return web.Response(text=f.read(), content_type='text/html')
 
-<div id="welcome">
-    <div class="welcome-card">
-        <h1>TONBOX <span>NEWS</span></h1>
-        <p>Приветствуем тебя на портале TONBOX! Следи за самыми свежими новостями лиги вместе с нами.</p>
-        <button onclick="enterSite()" class="btn btn-red">Смотреть Новости!</button>
-    </div>
-</div>
+app = web.Application()
+app.router.add_get('/', handle_site)
+app.router.add_get('/api/news', handle_api)
+app.router.add_static('/static/', path=STATIC_DIR, name='static')
 
-<header id="header">
-    <div class="burger" onclick="toggleMenu()">☰</div>
-    <div class="header-title">TONBOX NEWS</div>
-    <div style="width: 28px;"></div>
-</header>
+async def main():
+    asyncio.create_task(dp.start_polling(bot))
+    port = int(os.environ.get("PORT", 10000))
+    runner = web.AppRunner(app)
+    await runner.setup()
+    await web.TCPSite(runner, '0.0.0.0', port).start()
+    while True: await asyncio.sleep(3600)
 
-<div class="sidebar" id="sidebar">
-    <div class="close-menu" onclick="toggleMenu()">✕</div>
-    <div style="margin-top: 30px;">
-        <a href="https://t.me/TonBoxFTCL" class="btn btn-blue" style="font-size: 11px;">
-            <img src="https://upload.wikimedia.org/wikipedia/commons/8/82/Telegram_logo.svg" width="16"> Наш Канал
-        </a>
-        <a href="https://t.me/fanziks" class="btn btn-red" style="font-size: 11px;">
-             Создатель Бота
-        </a>
-    </div>
-</div>
-
-<div class="news-section" id="news-section">
-    <div id="news-container">
-        <div style="text-align: center; opacity: 0.5; margin-top: 50px;">Загрузка новостей...</div>
-    </div>
-</div>
-
-<script>
-    const tg = window.Telegram ? window.Telegram.WebApp : null;
-    if (tg) tg.expand();
-
-    function enterSite() {
-        document.getElementById('welcome').style.transform = 'translateY(-100%)';
-        setTimeout(() => {
-            document.getElementById('header').style.display = 'flex';
-            document.getElementById('news-section').style.display = 'block';
-            loadNews();
-        }, 400);
-    }
-
-    function toggleMenu() {
-        document.getElementById('sidebar').classList.toggle('active');
-    }
-
-    async function loadNews() {
-        try {
-            const response = await fetch('/api/news');
-            const news = await response.json();
-            const container = document.getElementById('news-container');
-            
-            if (news.length === 0) {
-                container.innerHTML = '<div style="text-align:center; padding:50px;">Новостей пока нет ⚽️</div>';
-                return;
-            }
-
-            container.innerHTML = news.map(item => `
-                <div class="news-card">
-                    <img src="${item.image_url}" class="news-img" onerror="this.src='https://via.placeholder.com/400x300/1a1a1a/ffffff?text=TONBOX+NEWS'">
-                    <div class="news-info">
-                        <h2>${item.title}</h2>
-                        <p>${item.content}</p>
-                    </div>
-                </div>
-            `).join('');
-        } catch (e) {
-            console.error("Ошибка загрузки:", e);
-            document.getElementById('news-container').innerHTML = '<div style="text-align:center; color:red;">Ошибка связи с сервером</div>';
-        }
-    }
-</script>
-
-</body>
-</html>
+if __name__ == "__main__":
+    asyncio.run(main())
