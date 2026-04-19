@@ -12,8 +12,7 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 from aiohttp import web
 
 # --- НАСТРОЙКИ ---
-# ВАЖНО: Если ты менял токен в BotFather, вставь новый сюда!
-BOT_TOKEN = "8617831885:AAGTfZNkXdiLR9X69C0t7gpNwbeTkSwmkWc"
+BOT_TOKEN = "8613728108:AAGR9Lmdx2YvG6wbg8qk31rcLxeKD4Vu6Po"
 ADMIN_ID = 1866813859 
 URL_SITE = "https://tonbox-news.onrender.com" 
 
@@ -21,9 +20,10 @@ logging.basicConfig(level=logging.INFO)
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 
-# Папки и файлы
-DB_FILE = "news.json"
-STATIC_DIR = "static"
+# Определяем базовую директорию проекта
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DB_FILE = os.path.join(BASE_DIR, "news.json")
+STATIC_DIR = os.path.join(BASE_DIR, "static")
 
 if not os.path.exists(STATIC_DIR):
     os.makedirs(STATIC_DIR)
@@ -110,21 +110,20 @@ async def delete_callback(callback: types.CallbackQuery):
     except:
         await callback.answer("Ошибка")
 
-# --- ОБНОВЛЕННАЯ ЛОГИКА СЕРВЕРА ---
+# --- УЛУЧШЕННЫЙ ВЕБ-СЕРВЕР ---
 
 async def handle_api(request):
     return web.json_response(news_list)
 
 async def handle_site(request):
-    # Ищем файл index.html в той же папке, где лежит bot.py
-    file_path = os.path.join(os.path.dirname(__file__), 'index.html')
+    # Пытаемся найти index.html в корне проекта
+    path_to_html = os.path.join(BASE_DIR, 'index.html')
     
-    if os.path.exists(file_path):
-        with open(file_path, 'r', encoding='utf-8') as f:
+    if os.path.exists(path_to_html):
+        with open(path_to_html, 'r', encoding='utf-8') as f:
             return web.Response(text=f.read(), content_type='text/html')
     else:
-        # Если файла нет, бот честно об этом напишет в WebApp
-        return web.Response(text=f"Критическая ошибка: index.html не найден по пути {file_path}", status=404)
+        return web.Response(text=f"Ошибка: index.html не найден. Проверь корень проекта. Путь на сервере: {path_to_html}", status=404)
 
 app = web.Application()
 app.router.add_get('/', handle_site)
@@ -137,7 +136,6 @@ async def main():
     runner = web.AppRunner(app)
     await runner.setup()
     await web.TCPSite(runner, '0.0.0.0', port).start()
-    print(f"Сервер запущен на порту {port}")
     while True: await asyncio.sleep(3600)
 
 if __name__ == "__main__":
