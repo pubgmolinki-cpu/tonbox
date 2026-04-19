@@ -3,96 +3,74 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>TonScore</title>
+    <title>TONSCORE</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
-        :root { --red: #E30022; --bg: #0A0A0A; --card: #161616; --text: #FFFFFF; }
-        body { background: var(--bg); color: var(--text); font-family: -apple-system, sans-serif; margin: 0; padding: 0; }
+        :root { --red: #E30022; --bg: #0A0A0A; --card: #161616; }
+        body { background: var(--bg); color: white; font-family: sans-serif; margin: 0; }
+        .header { background: var(--red); padding: 25px; text-align: center; font-weight: 900; letter-spacing: 2px; }
         
-        .header { background: var(--red); padding: 20px; text-align: center; font-weight: 900; letter-spacing: 2px; font-size: 20px; }
-        
-        .tabs { display: flex; background: var(--card); border-bottom: 1px solid #333; position: sticky; top: 0; }
-        .tab { flex: 1; text-align: center; padding: 15px; font-size: 12px; color: #888; font-weight: bold; text-transform: uppercase; }
-        .tab.active { color: white; border-bottom: 3px solid var(--red); }
-        
-        .content { padding: 15px; }
-        
-        /* Карточка матча */
-        .match-card {
+        /* Сетка главного меню */
+        .grid-menu {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            padding: 20px;
+        }
+        .menu-item {
             background: var(--card);
-            border-radius: 12px;
-            padding: 15px;
-            margin-bottom: 10px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            border-left: 4px solid var(--red);
-        }
-        .team-name { font-size: 14px; font-weight: 600; width: 40%; text-align: center; }
-        .score-box { background: #000; padding: 5px 15px; border-radius: 6px; color: var(--red); font-weight: 900; }
-
-        /* Карточка Игрока Тура */
-        .potw {
-            background: linear-gradient(145deg, #1a1a1a, #2a0005);
-            border: 1px solid var(--red);
+            height: 120px;
             border-radius: 15px;
-            padding: 25px;
-            text-align: center;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            border: 1px solid #222;
+            transition: 0.3s;
         }
-        .rating-val { background: var(--red); padding: 5px 12px; border-radius: 6px; font-size: 22px; font-weight: bold; }
+        .menu-item:active { transform: scale(0.95); background: #222; }
+        .menu-item i { font-size: 30px; margin-bottom: 10px; }
+        .menu-item span { font-weight: bold; font-size: 14px; text-transform: uppercase; }
+
+        .back-btn { padding: 10px; color: var(--red); font-weight: bold; cursor: pointer; display: none; }
     </style>
 </head>
 <body>
     <div class="header">TONSCORE</div>
-    
-    <div class="tabs">
-        <div id="tab-matches" class="tab active" onclick="show('matches')">Матчи</div>
-        <div id="tab-table" class="tab" onclick="show('table')">Таблица</div>
-        <div id="tab-totw" class="tab" onclick="show('totw')">TOTW</div>
+    <div id="back" class="back-btn" onclick="showMain()">← Назад</div>
+
+    <div id="main-menu" class="grid-menu">
+        <div class="menu-item" onclick="openSection('table')"><i>📊</i><span>Таблица</span></div>
+        <div class="menu-item" onclick="openSection('results')"><i>⚽</i><span>Результаты</span></div>
+        <div class="menu-item" onclick="openSection('totw')"><i>⭐</i><span>TOTW</span></div>
+        <div class="menu-item" onclick="openSection('clubs')"><i>🛡</i><span>Клубы</span></div>
+        <div class="menu-item" onclick="openSection('stats')"><i>📈</i><span>Статистика</span></div>
     </div>
 
-    <div class="content" id="view">
+    <div id="content" style="padding: 15px; display: none;">
         </div>
 
     <script>
         const tg = window.Telegram.WebApp;
         tg.expand();
-        tg.setHeaderColor('#E30022');
 
-        function show(page) {
-            // Смена активной вкладки
-            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-            document.getElementById('tab-' + page).classList.add('active');
+        function openSection(type) {
+            document.getElementById('main-menu').style.display = 'none';
+            document.getElementById('content').style.display = 'block';
+            document.getElementById('back').style.display = 'block';
             
-            const view = document.getElementById('view');
-            
-            if(page === 'matches') {
-                view.innerHTML = `
-                    <div class="match-card">
-                        <span class="team-name">Ренти Сити</span>
-                        <div class="score-box">1 : 2</div>
-                        <span class="team-name">Зёльден</span>
-                    </div>
-                `;
-            } else if(page === 'table') {
-                view.innerHTML = `
-                    <div class="match-card"><span>1. Ренти Сити</span><b>15 очков</b></div>
-                    <div class="match-card"><span>2. Зёльден</span><b>12 очков</b></div>
-                `;
-            } else if(page === 'totw') {
-                view.innerHTML = `
-                    <div class="potw">
-                        <div style="color: gold; margin-bottom: 10px;">⭐ ЛУЧШИЙ ИГРОК ТУРА</div>
-                        <h2 style="margin: 10px 0;">Nord</h2>
-                        <div style="margin: 15px 0;"><span class="rating-val">8.6</span></div>
-                        <p style="color: #888;">Зёльден • ЦАП</p>
-                    </div>
-                `;
+            const content = document.getElementById('content');
+            if(type === 'table') {
+                content.innerHTML = '<h2>Таблица Дивизиона 3</h2><div style="background:#161616; padding:15px; border-radius:10px;">Здесь будет список команд...</div>';
             }
+            // И так далее для каждой секции
         }
 
-        // Запуск первой вкладки
-        show('matches');
+        function showMain() {
+            document.getElementById('main-menu').style.display = 'grid';
+            document.getElementById('content').style.display = 'none';
+            document.getElementById('back').style.display = 'none';
+        }
     </script>
 </body>
 </html>
