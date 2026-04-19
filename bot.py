@@ -12,7 +12,7 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 from aiohttp import web
 
 # --- НАСТРОЙКИ ---
-BOT_TOKEN = "8617831885:AAGTfZNkXdiLR9X69C0t7gpNwbeTkSwmkWc"
+BOT_TOKEN = "8613728108:AAGR9Lmdx2YvG6wbg8qk31rcLxeKD4Vu6Po"
 ADMIN_ID = 1866813859 
 URL_SITE = "https://tonbox-news.onrender.com" 
 
@@ -20,10 +20,8 @@ logging.basicConfig(level=logging.INFO)
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 
-# Определяем базовую директорию проекта
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DB_FILE = os.path.join(BASE_DIR, "news.json")
-STATIC_DIR = os.path.join(BASE_DIR, "static")
+DB_FILE = "news.json"
+STATIC_DIR = "static"
 
 if not os.path.exists(STATIC_DIR):
     os.makedirs(STATIC_DIR)
@@ -42,23 +40,65 @@ def save_news_to_file():
 
 news_list = load_news()
 
+# --- HTML КОД (Прямо в переменной) ---
+HTML_TEMPLATE = """
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TONBOX NEWS</title>
+    <style>
+        body { background: #0a0a0c; color: #fff; font-family: sans-serif; padding: 15px; margin: 0; }
+        h1 { color: #ff004c; text-align: center; font-size: 24px; }
+        .card { background: #161618; border-radius: 15px; margin-bottom: 20px; overflow: hidden; border: 1px solid #222; }
+        .card img { width: 100%; height: 200px; object-fit: cover; }
+        .card-body { padding: 15px; }
+        h2 { margin: 0 0 10px; font-size: 18px; color: #ff004c; }
+        p { font-size: 14px; opacity: 0.8; line-height: 1.4; }
+    </style>
+</head>
+<body>
+    <h1>TONBOX NEWS ⚽️</h1>
+    <div id="news"></div>
+    <script>
+        async function load() {
+            const r = await fetch('/api/news');
+            const data = await r.json();
+            const cont = document.getElementById('news');
+            if (data.length === 0) { cont.innerHTML = '<p style="text-align:center">Новостей пока нет...</p>'; return; }
+            cont.innerHTML = data.map(n => `
+                <div class="card">
+                    <img src="${n.image_url}" onerror="this.src='https://via.placeholder.com/400x200?text=News'">
+                    <div class="card-body">
+                        <h2>${n.title}</h2>
+                        <p>${n.content}</p>
+                    </div>
+                </div>
+            `).join('');
+        }
+        load();
+    </script>
+</body>
+</html>
+"""
+
 class NewPost(StatesGroup):
     photo = State()
     title = State()
     content = State()
 
-# --- ЛОГИКА БОТА ---
-
+# --- БОТ ---
 @dp.message(Command("start"))
 async def cmd_start(message: Message):
     kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="Читать TONBOX NEWS ⚽️", web_app=WebAppInfo(url=URL_SITE))]
+        [InlineKeyboardButton(text="Открыть TONBOX NEWS", web_app=WebAppInfo(url=URL_SITE))]
     ])
-    await message.answer(f"Привет, {message.from_user.first_name}!\nДобро пожаловать в TONBOX NEWS.", reply_markup=kb)
+    await message.answer("Добро пожаловать в TONBOX NEWS!", reply_markup=kb)
 
 @dp.message(Command("admin"), F.from_user.id == ADMIN_ID)
 async def admin_panel(message: Message, state: FSMContext):
-    await message.answer("🛠 **Админка**\nПришли ФОТОГРАФИЮ для новости:")
+    await message.answer("Пришли ФОТО:")
     await state.set_state(NewPost.photo)
 
 @dp.message(NewPost.photo, F.photo)
@@ -69,61 +109,29 @@ async def process_photo(message: Message, state: FSMContext):
     file_path = os.path.join(STATIC_DIR, file_name)
     await bot.download_file(file_info.file_path, file_path)
     await state.update_data(photo_url=f"/static/{file_name}")
-    await message.answer("Введите ЗАГОЛОВОК новости:")
+    await message.answer("Заголовок:")
     await state.set_state(NewPost.title)
 
 @dp.message(NewPost.title)
 async def set_title(message: Message, state: FSMContext):
     await state.update_data(title=message.text)
-    await message.answer("Введите ТЕКСТ новости:")
+    await message.answer("Текст:")
     await state.set_state(NewPost.content)
 
 @dp.message(NewPost.content)
 async def save_new_post(message: Message, state: FSMContext):
     data = await state.get_data()
-    news_list.insert(0, {
-        "image_url": data['photo_url'],
-        "title": data['title'],
-        "content": message.text
-    })
+    news_list.insert(0, {"image_url": data['photo_url'], "title": data['title'], "content": message.text})
     save_news_to_file()
-    await message.answer("✅ Новость опубликована!")
+    await message.answer("✅ Опубликовано!")
     await state.clear()
 
-@dp.message(Command("manage"), F.from_user.id == ADMIN_ID)
-async def manage_news(message: Message):
-    if not news_list:
-        await message.answer("Новостей нет.")
-        return
-    for index, news in enumerate(news_list):
-        builder = InlineKeyboardBuilder()
-        builder.row(InlineKeyboardButton(text="❌ Удалить", callback_data=f"del_{index}"))
-        await message.answer(f"🔹 {news['title']}", reply_markup=builder.as_markup())
-
-@dp.callback_query(F.data.startswith("del_"))
-async def delete_callback(callback: types.CallbackQuery):
-    idx = int(callback.data.split("_")[1])
-    try:
-        removed = news_list.pop(idx)
-        save_news_to_file()
-        await callback.message.edit_text(f"🗑 Удалено: {removed['title']}")
-    except:
-        await callback.answer("Ошибка")
-
-# --- УЛУЧШЕННЫЙ ВЕБ-СЕРВЕР ---
-
+# --- СЕРВЕР ---
 async def handle_api(request):
     return web.json_response(news_list)
 
 async def handle_site(request):
-    # Пытаемся найти index.html в корне проекта
-    path_to_html = os.path.join(BASE_DIR, 'index.html')
-    
-    if os.path.exists(path_to_html):
-        with open(path_to_html, 'r', encoding='utf-8') as f:
-            return web.Response(text=f.read(), content_type='text/html')
-    else:
-        return web.Response(text=f"Ошибка: index.html не найден. Проверь корень проекта. Путь на сервере: {path_to_html}", status=404)
+    return web.Response(text=HTML_TEMPLATE, content_type='text/html')
 
 app = web.Application()
 app.router.add_get('/', handle_site)
@@ -136,7 +144,7 @@ async def main():
     runner = web.AppRunner(app)
     await runner.setup()
     await web.TCPSite(runner, '0.0.0.0', port).start()
-    while True: await asyncio.sleep(3600)
+    await asyncio.Event().wait()
 
 if __name__ == "__main__":
     asyncio.run(main())
