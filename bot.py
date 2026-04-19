@@ -2,6 +2,7 @@ import os
 import logging
 import asyncio
 import psycopg2
+import json
 from psycopg2.extras import RealDictCursor
 import google.generativeai as genai
 from aiogram import Bot, Dispatcher, types, F
@@ -10,75 +11,134 @@ from aiogram.types import Message, WebAppInfo, InlineKeyboardMarkup, InlineKeybo
 from aiohttp import web
 
 # --- НАСТРОЙКИ ---
+# Вставь сюда свой ключ вручную, если в Railway Variables он не подхватывается
+GEMINI_KEY = os.environ.get("GEMINI_API_KEY", "AIzaSyBTfuFyYRmZBjm9WLJUpQuqOZ7fbNk-70o")
 BOT_TOKEN = os.environ.get("BOT_TOKEN")
 ADMIN_ID = 1866813859
 URL_SITE = os.environ.get("URL_SITE") 
 DATABASE_URL = os.environ.get("DATABASE_URL")
-genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
 
+genai.configure(api_key=GEMINI_KEY)
 logging.basicConfig(level=logging.INFO)
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 model = genai.GenerativeModel('gemini-1.5-flash')
 
-# --- ИНИЦИАЛИЗАЦИЯ БАЗЫ ---
-def get_db_connection():
-    return psycopg2.connect(DATABASE_URL)
-
+# --- ИНИЦИАЛИЗАЦИЯ БАЗЫ ДАННЫХ ---
 def init_db():
     try:
-        conn = get_db_connection()
+        conn = psycopg2.connect(DATABASE_URL)
         cur = conn.cursor()
+        # Таблицы для твоей структуры: Клубы, Игроки, Матчи, Статистика
         cur.execute("""
-            CREATE TABLE IF NOT EXISTS teams (id SERIAL PRIMARY KEY, name TEXT UNIQUE, logo_url TEXT, division TEXT DEFAULT 'FTCL 3');
-            CREATE TABLE IF NOT EXISTS players (id SERIAL PRIMARY KEY, team_id INTEGER REFERENCES teams(id) ON DELETE CASCADE, name TEXT, rating INTEGER, goals INTEGER DEFAULT 0, assists INTEGER DEFAULT 0, avg_rating REAL DEFAULT 0.0);
-            CREATE TABLE IF NOT EXISTS matches (id SERIAL PRIMARY KEY, tour INTEGER, home_id INTEGER REFERENCES teams(id), away_id INTEGER REFERENCES teams(id), score_home INTEGER, score_away INTEGER, stats JSONB);
-            CREATE TABLE IF NOT EXISTS match_stats (id SERIAL PRIMARY KEY, match_id INTEGER REFERENCES matches(id) ON DELETE CASCADE, player_id INTEGER REFERENCES players(id), rating REAL, goals INTEGER, assists INTEGER, is_totw BOOLEAN DEFAULT FALSE);
+            CREATE TABLE IF NOT EXISTS teams (
+                id SERIAL PRIMARY KEY, 
+                name TEXT UNIQUE, 
+                logo_url TEXT DEFAULT 'https://via.placeholder.com/100'
+            );
+            CREATE TABLE IF NOT EXISTS players (
+                id SERIAL PRIMARY KEY, 
+                team_id INTEGER REFERENCES teams(id), 
+                name TEXT, 
+                position TEXT,
+                goals INTEGER DEFAULT 0, 
+                assists INTEGER DEFAULT 0, 
+                saves INTEGER DEFAULT 0, 
+                tackles INTEGER DEFAULT 0,
+                rating REAL DEFAULT 0.0
+            );
+            CREATE TABLE IF NOT EXISTS matches (
+                id SERIAL PRIMARY KEY, 
+                home_team TEXT, 
+                away_team TEXT, 
+                score_home INTEGER, 
+                score_away INTEGER, 
+                match_data JSONB
+            );
         """)
         conn.commit()
         cur.close()
         conn.close()
+        print("✅ База TONSCORE успешно запущена")
     except Exception as e:
-        logging.error(f"Ошибка БД: {e}")
+        print(f"❌ Ошибка БД: {e}")
 
 init_db()
 
-# --- ХЕНДЛЕРЫ ---
+# --- ЛОГИКА ИИ (GEMINI) ---
+SYSTEM_PROMPT = """
+Ты — ИИ-Администратор футбольной лиги TONSCORE (FTCL 3). 
+Твоя задача: анализировать отчеты о матчах и управлять базой данных.
+Цветовая схема проекта: Красно-Алый.
+
+Когда тебе присылают текст матча:
+1. Выдели счет, авторов голов, ассистов.
+2. Выдели лучших игроков и их оценки (дели на 10, например 84 -> 8.4).
+3. Сформируй красивый отчет для админа.
+4. В конце спроси: "Данные проверены? Вносим в базу?"
+"""
 
 @dp.message(Command("start"))
 async def cmd_start(message: Message):
-    # Прямая кнопка в Mini App
     kb = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="TonScore", web_app=WebAppInfo(url=URL_SITE))]
     ])
     await message.answer(
-        "TonScore доступен уже в этом мини приложении",
+        "<b>TonScore</b> доступен уже в этом мини приложении.\n\n"
+        "Жми кнопку ниже, чтобы открыть панель управления лигой.",
+        parse_mode="HTML",
         reply_markup=kb
     )
 
-# ИИ-помощник для админа (обработка текстов матчей)
 @dp.message(F.from_user.id == ADMIN_ID)
-async def admin_ai(message: Message):
-    # Gemini анализирует ввод и отвечает в чате
-    prompt = "Ты ассистент TonScore. Помоги админу управлять данными лиги FTCL 3."
-    response = model.generate_content(f"{prompt}\n\nЗапрос: {message.text}")
-    await message.answer(f"🤖 <b>Ассистент:</b>\n\n{response.text}", parse_mode="HTML")
+async def handle_admin_messages(message: Message):
+    # Показываем, что бот думает
+    await bot.send_chat_action(message.chat.id, "typing")
+    
+    try:
+        # Отправляем запрос в Gemini
+        chat = model.start_chat(history=[])
+        response = chat.send_message(f"{SYSTEM_PROMPT}\n\nЗапрос от админа: {message.text}")
+        
+        await message.answer(f"🤖 <b>Ассистент TonScore:</b>\n\n{response.text}", parse_mode="HTML")
+    except Exception as e:
+        logging.error(f"Gemini Error: {e}")
+        await message.answer("⚠️ Ошибка связи с ИИ. Проверь GEMINI_API_KEY в настройках.")
 
-# --- СЕРВЕР ДЛЯ WEB APP ---
+# --- API ДЛЯ WEB APP (Чтобы приложение видело данные) ---
+async def get_table(request):
+    # В будущем здесь будет реальный SELECT из SQL
+    data = {"teams": [
+        {"name": "Ренти Сити", "points": 15},
+        {"name": "Зёльден", "points": 12}
+    ]}
+    return web.json_response(data)
+
 async def handle_index(request):
     with open("index.html", "r", encoding="utf-8") as f:
         return web.Response(text=f.read(), content_type='text/html')
 
+# --- ЗАПУСК СЕРВЕРА И БОТА ---
 app = web.Application()
 app.router.add_get('/', handle_index)
+app.router.add_get('/api/table', get_table)
 
 async def main():
+    # Запускаем бота
     asyncio.create_task(dp.start_polling(bot))
+    
+    # Запускаем веб-сервер для Web App
     runner = web.AppRunner(app)
     await runner.setup()
     port = int(os.environ.get("PORT", 8080))
-    await web.TCPSite(runner, '0.0.0.0', port).start()
+    site = web.TCPSite(runner, '0.0.0.0', port)
+    await site.start()
+    
+    # Держим процесс запущенным
     await asyncio.Event().wait()
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    try:
+        asyncio.run(main())
+    except (KeyboardInterrupt, SystemExit):
+        logging.info("Бот остановлен")
