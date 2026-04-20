@@ -14,7 +14,7 @@
 
         /* Сетка плиток */
         .dashboard { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 15px; animation: fadeIn 0.3s; }
-        .tile { background: var(--card); border-radius: 15px; height: 110px; display: flex; flex-direction: column; align-items: center; justify-content: center; border: 1px solid #222; text-decoration: none; color: white; transition: 0.2s; }
+        .tile { background: var(--card); border-radius: 15px; height: 110px; display: flex; flex-direction: column; align-items: center; justify-content: center; border: 1px solid #222; text-decoration: none; color: white; transition: 0.2s; cursor: pointer; }
         .tile:active { transform: scale(0.95); background: #222; }
         .tile-icon { font-size: 28px; margin-bottom: 8px; }
         .tile-title { font-size: 12px; font-weight: bold; text-transform: uppercase; letter-spacing: 1px; }
@@ -28,6 +28,7 @@
 
         .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
         .stat-card { background: var(--card); padding: 15px; border-radius: 10px; text-align: center; border-bottom: 3px solid var(--red); }
+        .loading-text { text-align: center; opacity: 0.5; font-size: 14px; margin-top: 20px; }
     </style>
 </head>
 <body>
@@ -47,7 +48,7 @@
 
     <div id="results" class="section">
         <h3>Последние матчи</h3>
-        <div class="list-item" onclick="alert('Тут будет полная статистика матча!')">
+        <div class="list-item">
             <span>Ренти Сити</span>
             <b style="color: var(--red)">1 : 2</b>
             <span>Зёльден</span>
@@ -55,19 +56,18 @@
     </div>
 
     <div id="stats" class="section">
-        <h3>Лидеры лиги</h3>
-        <div class="stat-grid">
-            <div class="stat-card"><b>⚽ Голы</b><br><small>Munez (1)</small></div>
-            <div class="stat-card"><b>💼 Ассисты</b><br><small>Nord (1)</small></div>
-            <div class="stat-card"><b>🥅 Сейвы</b><br><small>Петросян (5)</small></div>
-            <div class="stat-card"><b>🤾 Отборы</b><br><small>Broker (5)</small></div>
+        <h3>Лидеры лиги (Бомбардиры)</h3>
+        <div id="stats-list" class="stat-grid">
+            <p class="loading-text">Загрузка данных...</p>
         </div>
     </div>
 
     <div id="clubs" class="section">
         <h3>Клубы FTCL 3</h3>
-        <div class="list-item"><span>🛡️ Ренти Сити</span><span>›</span></div>
-        <div class="list-item"><span>🛡️ Зёльден</span><span>›</span></div>
+        <div id="clubs-list">
+            <div class="list-item"><span>🛡️ Ренти Сити</span><span>›</span></div>
+            <div class="list-item"><span>🛡️ Зёльден</span><span>›</span></div>
+        </div>
     </div>
 
     <script>
@@ -79,12 +79,44 @@
             document.querySelectorAll('.section').forEach(s => s.style.display = 'none');
             document.getElementById(id).style.display = 'block';
             document.getElementById('back-btn').style.display = 'block';
+
+            // Если открываем статистику — грузим данные
+            if (id === 'stats') {
+                loadRealStats();
+            }
         }
 
         function goHome() {
             document.getElementById('home').style.display = 'grid';
             document.querySelectorAll('.section').forEach(s => s.style.display = 'none');
             document.getElementById('back-btn').style.display = 'none';
+        }
+
+        // ФУНКЦИЯ ЗАГРУЗКИ РЕАЛЬНЫХ ДАННЫХ ИЗ БАЗЫ
+        async function loadRealStats() {
+            const container = document.getElementById('stats-list');
+            try {
+                // Делаем запрос к нашему API в bot.py
+                const response = await fetch('/api/stats');
+                const data = await response.json();
+
+                if (data.length === 0) {
+                    container.innerHTML = "<p class='loading-text'>В базе пока нет голов.</p>";
+                    return;
+                }
+
+                // Генерируем карточки бомбардиров
+                container.innerHTML = data.map(player => `
+                    <div class="stat-card">
+                        <b>⚽ ${player.name}</b><br>
+                        <small>Голов: ${player.goals}</small>
+                    </div>
+                `).join('');
+
+            } catch (error) {
+                console.error("Ошибка загрузки:", error);
+                container.innerHTML = "<p class='loading-text'>Ошибка связи с сервером</p>";
+            }
         }
     </script>
 </body>
