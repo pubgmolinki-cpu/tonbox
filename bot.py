@@ -9,32 +9,24 @@ from aiogram.types import Message, WebAppInfo, InlineKeyboardMarkup, InlineKeybo
 from aiohttp import web
 
 # --- НАСТРОЙКИ ---
-# Берем данные из секретных переменных Railway
 GEMINI_KEY = os.environ.get("GEMINI_API_KEY")
 BOT_TOKEN = os.environ.get("BOT_TOKEN")
 ADMIN_ID = 1866813859
 URL_SITE = os.environ.get("URL_SITE") 
 DATABASE_URL = os.environ.get("DATABASE_URL")
 
-# Настройка логирования
 logging.basicConfig(level=logging.INFO)
 
-# --- ИНИЦИАЛИЗАЦИЯ GEMINI ---
+# --- ИНИЦИАЛИЗАЦИЯ GEMINI (FIXED) ---
 if not GEMINI_KEY:
-    logging.error("❌ Переменная GEMINI_API_KEY не задана!")
+    logging.error("❌ GEMINI_API_KEY не найден в Variables!")
 else:
-    # transport='rest' решает проблему с gRPC на некоторых серверах
+    # Отключаем использование mTLS и принудительно ставим REST для стабильности на Railway
+    os.environ["GOOGLE_API_USE_MTLS_ENDPOINT"] = "never"
     genai.configure(api_key=GEMINI_KEY, transport='rest')
 
-# Создаем модель с явными настройками, чтобы избежать 404
-model = genai.GenerativeModel(
-    model_name="gemini-1.5-flash",
-    generation_config={
-        "temperature": 0.7,
-        "top_p": 0.95,
-        "max_output_tokens": 1024,
-    }
-)
+# Создаем модель через стабильный путь
+model = genai.GenerativeModel(model_name="models/gemini-1.5-flash")
 
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
@@ -54,7 +46,6 @@ def init_db():
                 id SERIAL PRIMARY KEY, 
                 team_id INTEGER REFERENCES teams(id), 
                 name TEXT, 
-                position TEXT,
                 goals INTEGER DEFAULT 0, 
                 assists INTEGER DEFAULT 0, 
                 rating REAL DEFAULT 0.0
@@ -64,22 +55,24 @@ def init_db():
                 home_team TEXT, 
                 away_team TEXT, 
                 score_home INTEGER, 
-                score_away INTEGER,
-                match_data JSONB
+                score_away INTEGER
             );
         """)
         conn.commit()
         cur.close()
         conn.close()
-        logging.info("✅ База данных подключена")
+        logging.info("✅ База TONSCORE успешно подключена")
     except Exception as e:
         logging.error(f"❌ Ошибка БД: {e}")
 
-# --- ОБРАБОТЧИКИ КОМАНД ---
+# --- ОБРАБОТЧИКИ ---
 @dp.message(Command("start"))
 async def cmd_start(message: Message):
+    # Проверка на наличие https:// в URL
+    web_url = URL_SITE if URL_SITE.startswith("http") else f"https://{URL_SITE}"
+    
     kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="Открыть TonScore", web_app=WebAppInfo(url=URL_SITE))]
+        [InlineKeyboardButton(text="Открыть TonScore", web_app=WebAppInfo(url=web_url))]
     ])
     await message.answer(
         "<b>TonScore</b> готов к работе.\n\nИспользуй кнопку ниже для управления лигой.",
@@ -91,27 +84,28 @@ async def cmd_start(message: Message):
 async def admin_ai_handler(message: Message):
     await bot.send_chat_action(message.chat.id, "typing")
     try:
-        # Запрос к Gemini
-        response = model.generate_content(f"Ты помощник футбольной лиги. Коротко ответь на вопрос: {message.text}")
-        await message.answer(f"🤖 {response.text}")
+        # Прямой вызов генерации контента
+        response = model.generate_content(f"Ты ассистент лиги TonScore. Ответь кратко: {message.text}")
         
-    except Exception as e:
-        logging.error(f"Ошибка ИИ: {e}")
-        # Выводим понятную ошибку в чат для отладки
-        error_msg = str(e)
-        if "404" in error_msg:
-            await message.answer("⚠️ Ошибка 404: Модель не найдена. Проверь, что API ключ активен в Google AI Studio.")
-        elif "API_KEY_INVALID" in error_msg:
-            await message.answer("⚠️ Ошибка: API ключ недействителен. Обнови его в Variables на Railway.")
+        if response and response.text:
+            await message.answer(f"🤖 {response.text}")
         else:
-            await message.answer(f"⚠️ Произошла ошибка: {error_msg}")
+            await message.answer("🤖 ИИ не смог сформировать ответ. Попробуй еще раз.")
+            
+    except Exception as e:
+        logging.error(f"Ошибка Gemini: {e}")
+        err_msg = str(e)
+        if "404" in err_msg:
+            await message.answer("⚠️ Ошибка 404: Модель всё еще не видна. Попробуй создать ключ в новом проекте Google AI Studio.")
+        else:
+            await message.answer(f"⚠️ Ошибка ИИ: {err_msg}")
 
-# --- ВЕБ-СЕРВЕР ДЛЯ WEB APP ---
+# --- СЕРВЕР ДЛЯ WEB APP ---
 async def handle_index(request):
     try:
         with open("index.html", "r", encoding="utf-8") as f:
             return web.Response(text=f.read(), content_type='text/html')
-    except FileNotFoundError:
+    except Exception:
         return web.Response(text="index.html не найден", status=404)
 
 app = web.Application()
@@ -119,11 +113,8 @@ app.router.add_get('/', handle_index)
 
 async def main():
     init_db()
-    
-    # Запускаем бота
     asyncio.create_task(dp.start_polling(bot))
     
-    # Запускаем сервер на порту Railway
     runner = web.AppRunner(app)
     await runner.setup()
     port = int(os.environ.get("PORT", 8080))
@@ -133,7 +124,4 @@ async def main():
     await asyncio.Event().wait()
 
 if __name__ == "__main__":
-    try:
-        asyncio.run(main())
-    except (KeyboardInterrupt, SystemExit):
-        logging.info("Бот выключен")
+    asyncio.run(main())
