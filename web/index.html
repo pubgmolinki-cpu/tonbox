@@ -1,1 +1,91 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>TONSCORE | FTCL 3</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+        :root { --red: #E30022; --bg: #0A0A0A; --card: #161616; --text: #fff; }
+        body { background: var(--bg); color: var(--text); font-family: -apple-system, sans-serif; margin: 0; overflow-x: hidden; }
+        
+        .header { background: var(--red); padding: 25px 15px; text-align: center; font-weight: 900; letter-spacing: 2px; position: relative; }
+        .back-btn { position: absolute; left: 15px; top: 28px; font-size: 14px; display: none; cursor: pointer; background: rgba(0,0,0,0.2); padding: 5px 10px; border-radius: 5px; }
 
+        /* Сетка плиток */
+        .dashboard { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 15px; animation: fadeIn 0.3s; }
+        .tile { background: var(--card); border-radius: 15px; height: 110px; display: flex; flex-direction: column; align-items: center; justify-content: center; border: 1px solid #222; text-decoration: none; color: white; transition: 0.2s; }
+        .tile:active { transform: scale(0.95); background: #222; }
+        .tile-icon { font-size: 28px; margin-bottom: 8px; }
+        .tile-title { font-size: 12px; font-weight: bold; text-transform: uppercase; letter-spacing: 1px; }
+
+        /* Разделы */
+        .section { display: none; padding: 15px; animation: slideUp 0.3s; }
+        .list-item { background: var(--card); padding: 15px; border-radius: 10px; margin-bottom: 8px; border-left: 4px solid var(--red); display: flex; justify-content: space-between; align-items: center; }
+        
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+
+        .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .stat-card { background: var(--card); padding: 15px; border-radius: 10px; text-align: center; border-bottom: 3px solid var(--red); }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div id="back-btn" class="back-btn" onclick="goHome()">← Назад</div>
+        TONSCORE
+    </div>
+
+    <div id="home" class="dashboard">
+        <div class="tile" onclick="openSection('results')"><span class="tile-icon">⚽</span><span class="tile-title">Результаты</span></div>
+        <div class="tile" onclick="openSection('table')"><span class="tile-icon">📊</span><span class="tile-title">Таблица</span></div>
+        <div class="tile" onclick="openSection('clubs')"><span class="tile-icon">🛡️</span><span class="tile-title">Клубы</span></div>
+        <div class="tile" onclick="openSection('stats')"><span class="tile-icon">📈</span><span class="tile-title">Статистика</span></div>
+        <div class="tile" onclick="openSection('totw')"><span class="tile-icon">⭐</span><span class="tile-title">TOTW</span></div>
+        <div class="tile" onclick="openSection('info')"><span class="tile-icon">ℹ️</span><span class="tile-title">Инфо</span></div>
+    </div>
+
+    <div id="results" class="section">
+        <h3>Последние матчи</h3>
+        <div class="list-item" onclick="alert('Тут будет полная статистика матча!')">
+            <span>Ренти Сити</span>
+            <b style="color: var(--red)">1 : 2</b>
+            <span>Зёльден</span>
+        </div>
+    </div>
+
+    <div id="stats" class="section">
+        <h3>Лидеры лиги</h3>
+        <div class="stat-grid">
+            <div class="stat-card"><b>⚽ Голы</b><br><small>Munez (1)</small></div>
+            <div class="stat-card"><b>💼 Ассисты</b><br><small>Nord (1)</small></div>
+            <div class="stat-card"><b>🥅 Сейвы</b><br><small>Петросян (5)</small></div>
+            <div class="stat-card"><b>🤾 Отборы</b><br><small>Broker (5)</small></div>
+        </div>
+    </div>
+
+    <div id="clubs" class="section">
+        <h3>Клубы FTCL 3</h3>
+        <div class="list-item"><span>🛡️ Ренти Сити</span><span>›</span></div>
+        <div class="list-item"><span>🛡️ Зёльден</span><span>›</span></div>
+    </div>
+
+    <script>
+        const tg = window.Telegram.WebApp;
+        tg.expand();
+
+        function openSection(id) {
+            document.getElementById('home').style.display = 'none';
+            document.querySelectorAll('.section').forEach(s => s.style.display = 'none');
+            document.getElementById(id).style.display = 'block';
+            document.getElementById('back-btn').style.display = 'block';
+        }
+
+        function goHome() {
+            document.getElementById('home').style.display = 'grid';
+            document.querySelectorAll('.section').forEach(s => s.style.display = 'none');
+            document.getElementById('back-btn').style.display = 'none';
+        }
+    </script>
+</body>
+</html>
