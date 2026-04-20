@@ -23,7 +23,7 @@ if not GEMINI_KEY:
 else:
     genai.configure(api_key=GEMINI_KEY)
 
-model = genai.GenerativeModel('gemini-1.5-flash')
+model = genai.GenerativeModel('models/gemini-1.5-flash')
 
 logging.basicConfig(level=logging.INFO)
 bot = Bot(token=BOT_TOKEN)
