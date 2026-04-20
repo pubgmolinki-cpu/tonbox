@@ -50,7 +50,7 @@ async def admin_ai_handler(message: Message):
         # Используем мощную модель Llama 3 через Groq
         chat_completion = client.chat.completions.create(
             messages=[{"role": "user", "content": message.text}],
-            model="llama3-8b-8192",
+            model="llama-3.1-8b-instant",
         )
         await message.answer(f"🤖 {chat_completion.choices[0].message.content}")
     except Exception as e:
