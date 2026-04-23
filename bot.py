@@ -37,7 +37,20 @@ async def start_webserver():
     site = web.TCPSite(runner, '0.0.0.0', port)
     await site.start()
 
-# ================= ПОЛНЫЕ ШАБЛОНЫ (БЕЗ СОКРАЩЕНИЙ) =================
+# ================= КЛАВИАТУРЫ =================
+def done_kb():
+    builder = ReplyKeyboardBuilder()
+    builder.button(text="✅ Готово (Конец текста)")
+    return builder.as_markup(resize_keyboard=True)
+
+def main_kb():
+    builder = ReplyKeyboardBuilder()
+    builder.button(text="Симуляция Матча")
+    builder.button(text="Чистка Тактик")
+    builder.adjust(2)
+    return builder.as_markup(resize_keyboard=True)
+
+# ================= ПОЛНЫЕ ШАБЛОНЫ =================
 
 CLEAN_TACTIC_TEMPLATE = """Бот, проанализируй и отредактируй эту тактику.
 
@@ -239,14 +252,18 @@ MVP, ПОЛНАЯ СТАТИСТИКА, ОЦЕНКИ ИГРОКОВ (от 5.0 д
 
 # ================= СОСТОЯНИЯ =================
 class SimMatch(StatesGroup):
-    home_name = State(); away_name = State(); stadium = State()
-    home_lineup = State(); away_lineup = State()
-    home_tactic = State(); away_tactic = State()
+    home_name = State()
+    away_name = State()
+    stadium = State()
+    home_lineup = State()
+    away_lineup = State()
+    home_tactic = State()
+    away_tactic = State()
 
 class CleanState(StatesGroup):
     tactic = State()
 
-# ================= ЛОГИКА ИИ =================
+# ================= ЛОГИКА =================
 
 async def call_groq(prompt, system_text):
     try:
@@ -268,14 +285,11 @@ async def log(msg, user):
         else: await bot.send_message(LOG_GROUP_ID, text)
     except: pass
 
-# ================= ХЕНДЛЕРЫ =================
-
 @dp.message(CommandStart())
 async def start(m: types.Message):
-    kb = ReplyKeyboardBuilder()
-    kb.button(text="Симуляция Матча"); kb.button(text="Чистка Тактик")
-    await m.answer("Бот запущен. Выберите действие:", reply_markup=kb.as_markup(resize_keyboard=True))
+    await m.answer("Бот запущен. Выберите действие:", reply_markup=main_kb())
 
+# --- ЧИСТКА ---
 @dp.message(F.text == "Чистка Тактик")
 async def cl_1(m: types.Message, state: FSMContext):
     await state.set_state(CleanState.tactic)
@@ -284,11 +298,12 @@ async def cl_1(m: types.Message, state: FSMContext):
 @dp.message(CleanState.tactic)
 async def cl_2(m: types.Message, state: FSMContext):
     await log(f"ЗАПРОС ЧИСТКИ:\n{m.text}", m.from_user.full_name)
-    res = await call_groq(CLEAN_TACTIC_TEMPLATE.format(user_tactic=m.text), "Ты футбольный аналитик.")
+    res = await call_groq(CLEAN_TACTIC_TEMPLATE.format(user_tactic=m.text), "Ты технический футбольный аналитик.")
     await m.answer(res)
     await log(f"РЕЗУЛЬТАТ ЧИСТКИ:\n{res}", "ИИ")
     await state.clear()
 
+# --- СИМУЛЯЦИЯ ---
 @dp.message(F.text == "Симуляция Матча")
 async def s1(m: types.Message, state: FSMContext):
     await state.set_state(SimMatch.home_name)
@@ -322,31 +337,48 @@ async def s5(m: types.Message, state: FSMContext):
 
 @dp.message(SimMatch.away_lineup)
 async def s6(m: types.Message, state: FSMContext):
-    await state.update_data(a_l=m.text)
+    await state.update_data(a_l=m.text, h_t="") # Инициализируем пустую тактику
     await state.set_state(SimMatch.home_tactic)
     d = await state.get_data()
-    await m.answer(f"6️⃣ Тактика {d['h_n']}:")
+    await m.answer(f"6️⃣ Присылай тактику {d['h_n']}.\nМожно несколькими сообщениями. В конце нажми «Готово».", reply_markup=done_kb())
 
 @dp.message(SimMatch.home_tactic)
 async def s7(m: types.Message, state: FSMContext):
-    await state.update_data(h_t=m.text)
-    await state.set_state(SimMatch.away_tactic)
-    d = await state.get_data()
-    await m.answer(f"7️⃣ Тактика {d['a_n']}:")
+    if m.text == "✅ Готово (Конец текста)":
+        d = await state.get_data()
+        await state.update_data(a_t="")
+        await state.set_state(SimMatch.away_tactic)
+        await m.answer(f"7️⃣ Присылай тактику {d['a_n']}.\nВ конце нажми «Готово».", reply_markup=done_kb())
+        return
+    
+    data = await state.get_data()
+    new_tactic = (data.get("h_t") or "") + "\n" + m.text
+    await state.update_data(h_t=new_tactic)
+    await m.answer(f"📥 Часть принята ({len(new_tactic)} симв.)")
 
 @dp.message(SimMatch.away_tactic)
 async def s_fin(m: types.Message, state: FSMContext):
-    await state.update_data(a_t=m.text)
-    d = await state.get_data()
-    data_block = f"🔴 {d['h_n']}\n{d['h_l']}\nТактика: {d['h_t']}\n\n🔵 {d['a_n']}\n{d['a_l']}\nТактика: {d['a_t']}\n\n🏟 {d['std']}"
-    await log(f"ДАННЫЕ МАТЧА:\n{data_block}", m.from_user.full_name)
-    await m.answer("⚽ Симулирую матч по регламенту...")
-    res = await call_groq(SIMULATION_FULL_TEMPLATE.format(match_input_data=data_block), "Ты футбольный комментатор.")
-    if len(res) > 4000:
-        for i in range(0, len(res), 4000): await m.answer(res[i:i+4000])
-    else: await m.answer(res)
-    await log(f"ИТОГ:\n{res}", "ИИ")
-    await state.clear()
+    if m.text == "✅ Готово (Конец текста)":
+        d = await state.get_data()
+        data_block = f"🔴 {d['h_n']}\n{d['h_l']}\nТактика: {d['h_t']}\n\n🔵 {d['a_n']}\n{d['a_l']}\nТактика: {d['a_t']}\n\n🏟 {d['std']}"
+        
+        await log(f"ДАННЫЕ МАТЧА:\n{data_block}", m.from_user.full_name)
+        await m.answer("⚽ Все данные в сборе! Начинаю симуляцию через Groq...", reply_markup=main_kb())
+        
+        res = await call_groq(SIMULATION_FULL_TEMPLATE.format(match_input_data=data_block), "Ты футбольный комментатор.")
+        
+        if len(res) > 4000:
+            for i in range(0, len(res), 4000): await m.answer(res[i:i+4000])
+        else: await m.answer(res)
+        
+        await log(f"ИТОГ:\n{res}", "ИИ")
+        await state.clear()
+        return
+
+    data = await state.get_data()
+    new_tactic = (data.get("a_t") or "") + "\n" + m.text
+    await state.update_data(a_t=new_tactic)
+    await m.answer(f"📥 Часть принята ({len(new_tactic)} симв.)")
 
 async def main():
     asyncio.create_task(start_webserver())
