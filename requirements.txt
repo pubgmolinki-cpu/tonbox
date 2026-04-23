@@ -2,3 +2,4 @@ aiogram
 groq
 psycopg2-binary
 aiohttp
+openai
